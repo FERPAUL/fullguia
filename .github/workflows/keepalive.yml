@@ -1,0 +1,48 @@
+# Anti-pausa: Supabase pausa los proyectos gratis tras 7 días sin actividad.
+# Cada 2 días hace una consulta real (RPC buscar_negocios) con la llave pública de public/js/config.js.
+# Si falla, la ejecución queda en rojo y GitHub avisa por correo al dueño del repo.
+name: Mantener Supabase activo
+
+on:
+  schedule:
+    - cron: '17 13 */2 * *'   # cada 2 días, 8:17 a. m. hora de Colombia
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  consultar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: public/js/config.js
+          sparse-checkout-cone-mode: false
+
+      - name: Consulta real a la base de datos
+        run: |
+          URL=$(grep -oE "SUPABASE_URL: *'[^']+'" public/js/config.js | sed -E "s/.*'([^']+)'/\1/")
+          KEY=$(grep -oE "SUPABASE_KEY: *'[^']+'" public/js/config.js | sed -E "s/.*'([^']+)'/\1/")
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "No se pudo leer config.js"; exit 1; fi
+          for intento in 1 2 3; do
+            CODIGO=$(curl -s -o respuesta.json -w "%{http_code}" -X POST "$URL/rest/v1/rpc/buscar_negocios" \
+              -H "apikey: $KEY" -H "Content-Type: application/json" -d '{"pagina":1,"por_pagina":1}')
+            if [ "$CODIGO" = "200" ] && grep -q '"total"' respuesta.json; then
+              echo "OK: Supabase respondió ($(grep -oE '"total": *[0-9]+' respuesta.json))"
+              exit 0
+            fi
+            echo "Intento $intento: HTTP $CODIGO"; sleep 20
+          done
+          echo "Supabase no respondió. Revisa si el proyecto está pausado en el panel de Supabase."
+          exit 1
+
+      # GitHub desactiva los workflows programados si el repo pasa 60 días sin cambios.
+      # Re-habilitarlo desde aquí reinicia ese contador.
+      - name: Mantener este workflow habilitado
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/keepalive.yml/enable" || true
