@@ -1,0 +1,27 @@
+# FullGuia en Hostinger (despliegue Git de hPanel en public_html).
+# El repositorio se copia completo; este archivo hace que el sitio se sirva SOLO desde la carpeta public/
+# y que nadie pueda abrir las demás carpetas (supabase/, qa/, scripts/, originales/, .github/ …).
+
+Options -Indexes
+RewriteEngine On
+
+# Archivos ocultos (.env, .git, etc.): prohibidos
+RewriteRule (^|/)\. - [F,L]
+
+# Todo lo que no esté ya dentro de public/ se busca dentro de public/
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L]
+
+# Caché: HTML siempre fresco; scripts y estilos se revalidan (cada push publica cambios al instante)
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|jsx|css)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(svg|png|jpg|jpeg|webp|ico)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript text/plain image/svg+xml
+</IfModule>
