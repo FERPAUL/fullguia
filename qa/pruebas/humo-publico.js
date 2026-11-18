@@ -106,6 +106,7 @@ module.exports = async function (ctx) {
   const perfil = A.d.querySelector('.icon-btn[aria-label="Mi Perfil"]');
   perfil.dispatchEvent(new A.w.MouseEvent('click', { bubbles: true, cancelable: true }));
   ctx.ok('', '"Mi Perfil" no se comporta como favorito (no cambia su ícono)', perfil.querySelector('svg').getAttribute('fill') === 'none');
+  ctx.ok('R16', '"Mi Perfil" lleva al panel admin en la misma dirección (admin/)', destino === 'admin/', destino);
   // Publicar
   A.d.querySelector('[data-fg="publicar"]').dispatchEvent(new A.w.MouseEvent('click', { bubbles: true, cancelable: true }));
   ctx.ok('R28', '"Publica tu negocio" sin WhatsApp configurado: lleva a la sección de planes', A.w.__abiertos.length === 0 && A.w.__scroll === 'publicar');

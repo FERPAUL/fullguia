@@ -352,6 +352,16 @@
     });
   }
 
+  // Ícono "Mi Perfil" de la cabecera: lleva al panel de administración (misma dirección + /admin/)
+  function activarPerfil() {
+    $$('.icon-btn[aria-label="Mi Perfil"]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.preventDefault();
+        navegar('admin/');
+      });
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // "Publica tu negocio"
   // ---------------------------------------------------------------------------
@@ -757,6 +767,7 @@
   function iniciar() {
     activarFavoritos();
     activarPublicar();
+    activarPerfil();
     activarVideo();
     var pg = document.body && document.body.getAttribute('data-fg-pagina');
     var f = PAGINAS[pg];
