@@ -130,12 +130,19 @@ module.exports = async function (ctx) {
     await p.waitForSelector('button[data-primary]');
     const subidasAntes = new Set(await listarBucket(T.admin));
 
+    // Espera a que termine ESTA subida (aparece y desaparece la barra de progreso y queda la miniatura)
+    const esperarSubida = async () => {
+      await p.waitForSelector('.modal .up-bar', { timeout: 15000 }).catch(() => {});
+      await p.waitForFunction(() => !document.querySelector('.modal .up-bar') && document.querySelector('.modal .up img'), { timeout: 60000 });
+    };
+    const textoAvisos = () => p.evaluate(() => (document.querySelector('.toasts') || {}).textContent || '');
+
     // a) subir y CANCELAR: lo subido se borra
     await p.click('button[data-primary]');
     await p.waitForSelector('.modal .up input[type=file]');
     const inputs = await p.$$('.modal .up input[type=file]');
     await inputs[0].uploadFile(rutaFoto);
-    await p.waitForFunction(() => /Foto lista/.test((document.querySelector('.toasts') || {}).textContent || ''), { timeout: 60000 });
+    await esperarSubida();
     const trasSubir = (await listarBucket(T.admin)).filter((x) => !subidasAntes.has(x));
     ctx.ok('R18', 'Interfaz: al subir una foto se guardan 2 archivos WebP (grande y mini)', trasSubir.length === 2 && trasSubir.every((x) => /\.webp$/.test(x)), trasSubir.join(', '));
     await p.evaluate(() => Array.from(document.querySelectorAll('.modal button')).find((b) => b.textContent.trim() === 'Cancelar').click());
@@ -143,11 +150,30 @@ module.exports = async function (ctx) {
     const trasCancelar = (await listarBucket(T.admin)).filter((x) => !subidasAntes.has(x));
     ctx.ok('R19', 'Interfaz: si se cancela el formulario, las fotos subidas se borran', trasCancelar.length === 0, trasCancelar.join(', '));
 
+    // a2) CANCELAR mientras la foto todavía se sube: al terminar, lo subido se borra solo
+    await p.click('button[data-primary]');
+    await p.waitForSelector('.modal .up input[type=file]');
+    await (await p.$$('.modal .up input[type=file]'))[0].uploadFile(rutaFoto);
+    await p.waitForSelector('.modal .up-bar', { timeout: 15000 }).catch(() => {});
+    await p.evaluate(() => Array.from(document.querySelectorAll('.modal button')).find((b) => b.textContent.trim() === 'Cancelar').click());
+    let quedan = [];
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r2) => setTimeout(r2, 1000));
+      quedan = (await listarBucket(T.admin)).filter((x) => !subidasAntes.has(x));
+      if (i >= 4 && !quedan.length) break;
+    }
+    ctx.ok('R19', 'Interfaz: si se cierra el formulario durante la subida, las fotos se borran al terminar', quedan.length === 0, quedan.join(', '));
+
     // b) subir y GUARDAR
     await p.click('button[data-primary]');
     await p.waitForSelector('.modal .up input[type=file]');
     await (await p.$$('.modal .up input[type=file]'))[0].uploadFile(rutaFoto);
-    await p.waitForFunction(() => /Foto lista/.test((document.querySelector('.toasts') || {}).textContent || ''), { timeout: 60000 });
+    await p.waitForSelector('.modal .up-bar', { timeout: 15000 }).catch(() => {});
+    // Guardar mientras la foto sube: no se permite (si no, el negocio quedaría sin foto y la foto huérfana)
+    await p.evaluate(() => Array.from(document.querySelectorAll('.modal button')).find((b) => b.textContent.trim() === 'Guardar').click());
+    await new Promise((r2) => setTimeout(r2, 200));
+    ctx.ok('R19', 'Interfaz: no deja guardar mientras la foto se está subiendo', /Espera a que termine de subir la foto/.test(await textoAvisos()) && !!(await p.$('.modal')));
+    await esperarSubida();
     const nombre = MARCA + ' Interfaz ' + Date.now();
     await p.evaluate((n) => {
       const campo = Array.from(document.querySelectorAll('.modal .field')).find((f) => /^Nombre/.test(f.textContent.trim())).querySelector('input');

@@ -1145,7 +1145,8 @@ const _sub = { n: 0, activo: null };
 function Subir({ clase, value, onChange, carpeta, disabled, onSubida }) {
   const esLogo = clase === 'logo';
   const [local, setLocal] = useState(''), [sub, setSub] = useState(false), [sobre, setSobre] = useState(false);
-  const inp = useRef(null), yo = useRef({}), fn = useRef(null);
+  const inp = useRef(null), yo = useRef({}), fn = useRef(null), montado = useRef(true);
+  useEffect(() => () => { montado.current = false; }, []);
   const tomar = async (file) => {
     if (!file || disabled || sub) return;
     const err = validarFoto(file);
@@ -1154,19 +1155,22 @@ function Subir({ clase, value, onChange, carpeta, disabled, onSubida }) {
     try {
       const p = await procesarFoto(file, esLogo ? 'logo' : 'foto');
       const prev = esLogo ? p.logo : p.mini;
-      setLocal(URL.createObjectURL(prev.blob));                       // se ve al instante
-      let res, peso;
+      if (montado.current) setLocal(URL.createObjectURL(prev.blob));   // se ve al instante
+      let res, peso, rutas;
       if (esLogo) {
         res = await subirBlob(p.logo.blob, p.logo.tipo, carpeta, 'logo');
         peso = p.logo.blob.size;
-        if (onSubida) onSubida([res]);
+        rutas = [res];
       } else {
         const g = await subirBlob(p.grande.blob, p.grande.tipo, carpeta, 'g');
         const m = await subirBlob(p.mini.blob, p.mini.tipo, carpeta, 'm');
         res = { grande: g, mini: m };
         peso = p.grande.blob.size + p.mini.blob.size;
-        if (onSubida) onSubida([g, m]);
+        rutas = [g, m];
       }
+      // Si el formulario se cerró mientras subía, nadie usará estas fotos: se borran (sin huérfanos).
+      if (!montado.current) { gsCall('borrarArchivos', [rutas]).catch(() => {}); return; }
+      if (onSubida) onSubida(rutas);
       onChange(res);
       toast('Foto lista (' + pesoTxt(peso) + ')', 'ok');
     } catch (e) {
@@ -1689,6 +1693,7 @@ function NegocioModal({ row, borrador, cats, onClose, onFallo }) {
   const cerrar = () => { subidas.limpiar([]); onClose(); };
   const extender = (dias) => setD((x) => Object.assign({}, x, { plan: 'destacado', destacado_hasta: sumarDias(x.destacado_hasta && x.destacado_hasta > hoyCO() ? x.destacado_hasta : hoyCO(), dias) }));
   const save = () => {
+    if (_sub.n > 0) return toast('Espera a que termine de subir la foto', 'warn');
     const err = validarNegocio(d);
     if (err) return toast(err, 'warn');
     if (!row && enCache('listNegocios', []).some((n) => norm(n.nombre) === norm(d.nombre) && norm(n.ciudad) === norm(d.ciudad))) {
@@ -1870,6 +1875,7 @@ function OfertaModal({ row, borrador, negocios, onClose, onFallo }) {
   const set = (k) => (v) => setD((x) => Object.assign({}, x, { [k]: v }));
   const cerrar = () => { subidas.limpiar([]); onClose(); };
   const save = () => {
+    if (_sub.n > 0) return toast('Espera a que termine de subir la foto', 'warn');
     if (!d.negocio_id) return toast('Elige el negocio', 'warn');
     if (String(d.titulo || '').trim().length < 2) return toast('Escribe el título de la oferta', 'warn');
     if (!String(d.descuento || '').trim()) return toast('Escribe el descuento, ej. -20% o 2x1', 'warn');
