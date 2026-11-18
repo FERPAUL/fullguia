@@ -185,3 +185,19 @@ Reutilizo `jsdom`, `@babel/standalone` y `react` de `C:\Users\LENOVO\.claude\ski
 - El enlace de GitHub Pages.
 - La lista de supuestos.
 - Todo el código en `Desktop\fullguia`.
+
+---
+
+## Ajustes acordados durante la construcción (2026-11-17)
+- **Herramienta:** Supabase CLI (`npx supabase`) + `pg`, sin MCP. Credenciales solo en `.env` (ignorado por git).
+- **Admin oficial:** `videosait.2026@gmail.com` (rol admin). Usuarios creados con la API oficial de administración de Auth (`scripts/crear-usuario.js`), nunca insertando en `auth.users`.
+- **Roles del panel:** `admin` (todo: categorías, usuarios, datos demo, negocios, ofertas, fotos) y `editor` (negocios, ofertas, fotos, importar CSV).
+- **Edge Function `usuarios` (justificada):** crear, borrar, cambiar rol y cambiar contraseña de usuarios de Auth exige la llave secreta, que no puede estar en el navegador. Solo responde a usuarios con rol admin. Es la única Edge Function.
+- **WhatsApp:** solo Colombia, `57` + 10 dígitos que empiezan por 3 (restricción en la BD). El número de Edi queda vacío en `config.js` hasta que lo tenga.
+- **Datos demo:** los negocios de la maqueta vienen marcados `demo = true`. En Configuración, el panel tiene **Cargar datos demo** (3 por categoría) y **Borrar datos demo** (borra negocios y ofertas demo, y sus fotos en Storage).
+
+| # | Requisito nuevo |
+|---|---|
+| R26 | Usuarios y roles: el admin crea, cambia de rol, cambia la contraseña y elimina usuarios desde el panel. El editor no ve ni puede usar la pantalla Usuarios (la función responde 403), no puede editar categorías y no puede cargar ni borrar demo. |
+| R27 | Datos demo: cargar agrega negocios demo sin duplicar; borrar elimina solo `demo = true` y sus archivos, sin tocar los negocios reales. |
+| R28 | WhatsApp solo con formato colombiano (+57 3XX XXX XXXX); el panel normaliza 10 dígitos a 57XXXXXXXXXX. |
