@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FullGuia.com - Encuentra los mejores negocios y servicios de tu región. Busca, compara y conecta.">
+    <title>FullGuia.com | Directorio Comercial</title>
+    <!-- Google Fonts: Poppins / Inter for modern clean UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FullGuia: conexión a datos (no editar el diseño aquí) -->
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://biajiyiyjtqocqrabrnu.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="stylesheet" href="css/fullguia.css">
+    <script src="js/config.js" defer></script>
+    <script src="js/fullguia.js" defer></script>
+
+    <style>
+        /* ==========================================================================
+           1. VARIABLES & BASE STYLES (Fácilmente editable en Dreamweaver)
+           ========================================================================== */
+        :root {
+            --primary: #FFC700;        /* Amarillo FullGuia */
+            --primary-hover: #E6B400;  /* Amarillo Hover */
+            --secondary: #1A1A1A;      /* Negro / Gris Oscuro */
+            --text-main: #2D3748;      /* Texto principal */
+            --text-muted: #718096;     /* Texto secundario */
+            --bg-light: #F8FAFC;       /* Fondo suave */
+            --bg-card: #FFFFFF;        /* Fondo blanco tarjetas */
+            --border: #E2E8F0;        /* Bordes */
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.04);
+            --shadow-md: 0 8px 16px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 24px rgba(0,0,0,0.1);
+            --transition: all 0.25s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            line-height: 1.5;
+            padding-bottom: 70px; /* Margen para barra de navegación móvil */
+        }
+
+        @media (min-width: 992px) {
+            body {
+                padding-bottom: 0;
+            }
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Container global */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* Componentes reutilizables */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--secondary);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--secondary);
+            background-color: var(--secondary);
+            color: white;
+        }
+
+        .badge-featured {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background-color: var(--primary);
+            color: var(--secondary);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            z-index: 2;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-discount {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background-color: var(--primary);
+            color: var(--secondary);
+            font-size: 0.85rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 8px;
+            z-index: 2;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .see-all-link {
+            color: var(--primary-hover);
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .see-all-link:hover {
+            color: var(--secondary);
+            text-decoration: underline;
+        }
+
+        /* ==========================================================================
+           2. HEADER & NAVIGATION
+           ========================================================================== */
+        .site-header {
+            background-color: #FFFFFF;
+            box-shadow: var(--shadow-sm);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 76px;
+        }
+
+        /* Logo Brand */
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .logo-svg {
+            height: 42px;
+            width: auto;
+        }
+
+        .logo-text-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--secondary);
+            line-height: 1;
+        }
+
+        .logo-brand span {
+            color: var(--primary);
+        }
+
+        .logo-subtext {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        /* Main Nav Links */
+        .main-nav {
+            display: none;
+        }
+
+        @media (min-width: 992px) {
+            .main-nav {
+                display: flex;
+                align-items: center;
+                gap: 24px;
+            }
+
+            .nav-link {
+                color: var(--text-main);
+                font-weight: 500;
+                font-size: 0.95rem;
+                padding: 6px 0;
+                position: relative;
+                transition: var(--transition);
+            }
+
+            .nav-link:hover, .nav-link.active {
+                color: var(--secondary);
+            }
+
+            .nav-link.active::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 3px;
+                background-color: var(--primary);
+                border-radius: 2px;
+            }
+        }
+
+        /* Right Nav Actions */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .icon-btn:hover {
+            background-color: var(--bg-light);
+            color: var(--secondary);
+        }
+
+        .publish-btn-header {
+            display: none;
+        }
+
+        @media (min-width: 640px) {
+            .publish-btn-header {
+                display: inline-flex;
+            }
+        }
+
+        /* ==========================================================================
+           3. HERO SECTION (Main Banner & Search)
+           ========================================================================== */
+        .hero-section {
+            padding: 32px 0 48px 0;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 32px;
+            align-items: center;
+        }
+
+        @media (min-width: 992px) {
+            .hero-grid {
+                grid-template-columns: 1.1fr 0.9fr;
+                gap: 48px;
+            }
+        }
+
+        .hero-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--secondary);
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+
+        @media (min-width: 768px) {
+            .hero-title {
+                font-size: 2.75rem;
+            }
+        }
+
+        .hero-subtitle {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        /* Video / Media Box */
+        .video-box {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            background-color: #000;
+        }
+
+        .video-box iframe, .video-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border: none;
+        }
+
+        /* Integrated Search Bar */
+        .search-container {
+            margin-top: 24px;
+            background: #FFFFFF;
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border);
+        }
+
+        .search-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        @media (min-width: 768px) {
+            .search-form {
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+
+        .search-field {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: var(--bg-light);
+            border-radius: var(--radius-md);
+            flex: 1;
+        }
+
+        .search-field svg {
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .search-field input, .search-field select {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .search-field select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+            background-repeat: no-repeat;
+            background-position: right 4px center;
+            padding-right: 20px;
+        }
+
+        .search-divider {
+            display: none;
+            width: 1px;
+            height: 30px;
+            background-color: var(--border);
+        }
+
+        @media (min-width: 768px) {
+            .search-divider {
+                display: block;
+            }
+        }
+
+        .btn-search {
+            width: 100%;
+            padding: 14px 24px;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        @media (min-width: 768px) {
+            .btn-search {
+                width: auto;
+            }
+        }
+
+        /* ==========================================================================
+           4. CATEGORIES GRID
+           ========================================================================== */
+        .categories-section {
+            padding: 24px 0 40px 0;
+        }
+
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        @media (min-width: 768px) {
+            .categories-grid {
+                grid-template-columns: repeat(8, 1fr);
+                gap: 20px;
+            }
+        }
+
+        .category-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .category-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .category-icon-box {
+            width: 64px;
+            height: 64px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFFFFF;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .category-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        /* Distinctive Colors from Reference Image */
+        .cat-orange { background: linear-gradient(135deg, #FF6B00, #FF8800); }
+        .cat-blue   { background: linear-gradient(135deg, #0077FF, #0099FF); }
+        .cat-green  { background: linear-gradient(135deg, #00C853, #00E676); }
+        .cat-purple { background: linear-gradient(135deg, #9C27B0, #BA68C8); }
+        .cat-yellow { background: linear-gradient(135deg, #FFB300, #FFC107); }
+        .cat-cyan   { background: linear-gradient(135deg, #00BCD4, #4DD0E1); }
+        .cat-red    { background: linear-gradient(135deg, #E53935, #EF5350); }
+        .cat-gray   { background: linear-gradient(135deg, #ECEFF1, #CFD8DC); color: #546E7A !important; }
+
+        /* ==========================================================================
+           5. FEATURED BUSINESSES & SIDEBAR WRAPPER
+           ========================================================================== */
+        .content-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 32px;
+            padding-bottom: 40px;
+        }
+
+        @media (min-width: 1024px) {
+            .content-layout {
+                grid-template-columns: 1fr 320px;
+            }
+        }
+
+        .businesses-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 640px) {
+            .businesses-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .businesses-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        /* Business Card Item */
+        .business-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .business-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-3px);
+        }
+
+        .business-image-wrapper {
+            position: relative;
+            height: 160px;
+            width: 100%;
+            background-color: #E2E8F0;
+        }
+
+        .business-image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .business-logo {
+            position: absolute;
+            bottom: -20px;
+            left: 16px;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            border: 3px solid #FFFFFF;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .business-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .business-fav-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(4px);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: var(--transition);
+        }
+
+        .business-fav-btn:hover {
+            color: #E53935;
+            background: #FFFFFF;
+        }
+
+        .business-content {
+            padding: 28px 16px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-grow: 1;
+        }
+
+        .business-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .business-rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .stars {
+            color: #FFB300;
+            display: flex;
+        }
+
+        .business-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .business-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Pagination indicators for slider-like feel */
+        .pagination-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--border);
+            cursor: pointer;
+        }
+
+        .dot.active {
+            background-color: var(--primary);
+            width: 20px;
+            border-radius: 10px;
+        }
+
+        /* ==========================================================================
+           6. SIDEBAR WIDGETS (CTA Negocios & Noticias)
+           ========================================================================== */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Banner Promocional para Negocios */
+        .business-cta-card {
+            background: linear-gradient(180deg, #FFFDF0 0%, #FFF8D6 100%);
+            border: 1px solid rgba(255, 199, 0, 0.4);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .cta-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--secondary);
+            margin-bottom: 8px;
+        }
+
+        .cta-description {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .cta-features {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .cta-feature-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .cta-feature-item svg {
+            color: #FF6B00;
+            flex-shrink: 0;
+        }
+
+        .cta-button {
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(255, 199, 0, 0.3);
+        }
+
+        /* Widget Noticias y Consejos */
+        .news-widget {
+            background: #FFFFFF;
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .news-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .news-item {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .news-thumb {
+            width: 64px;
+            height: 64px;
+            border-radius: var(--radius-md);
+            object-fit: cover;
+            flex-shrink: 0;
+            background-color: #E2E8F0;
+        }
+
+        .news-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .news-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--secondary);
+            line-height: 1.3;
+        }
+
+        .news-date {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* ==========================================================================
+           7. OFFERS / DEALS SECTION
+           ========================================================================== */
+        .offers-section {
+            padding: 12px 0 48px 0;
+        }
+
+        .offers-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 640px) {
+            .offers-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .offers-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        .offer-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            transition: var(--transition);
+        }
+
+        .offer-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .offer-image {
+            height: 160px;
+            width: 100%;
+            object-fit: cover;
+        }
+
+        /* ==========================================================================
+           8. FOOTER
+           ========================================================================== */
+        .site-footer {
+            background-color: var(--secondary);
+            color: #FFFFFF;
+            padding: 48px 0 24px 0;
+            margin-top: 40px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 32px;
+            margin-bottom: 40px;
+        }
+
+        @media (min-width: 768px) {
+            .footer-grid {
+                grid-template-columns: 2fr repeat(3, 1fr);
+            }
+        }
+
+        .footer-brand p {
+            color: #A0AEC0;
+            font-size: 0.9rem;
+            margin-top: 12px;
+            max-width: 300px;
+        }
+
+        .footer-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #FFFFFF;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .footer-links a {
+            color: #A0AEC0;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid #2D3748;
+            padding-top: 24px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #A0AEC0;
+        }
+
+        /* ==========================================================================
+           9. MOBILE BOTTOM NAVIGATION (Estilo App Movil)
+           ========================================================================== */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background-color: #FFFFFF;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 9999;
+            border-top: 1px solid var(--border);
+        }
+
+        @media (min-width: 992px) {
+            .bottom-nav {
+                display: none;
+            }
+        }
+
+        .bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 600;
+            width: 20%;
+            height: 100%;
+        }
+
+        .bottom-nav-item.active {
+            color: var(--secondary);
+        }
+
+        .bottom-nav-item.active svg {
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body data-fg-pagina="inicio">
+
+    <!-- ==========================================================================
+         HEADER / ENCABEZADO
+         ========================================================================== -->
+    <header class="site-header">
+        <div class="container">
+            <div class="header-content">
+                <!-- Logo corporativo FullGuia.com -->
+                <a href="index.html" class="logo-container" title="FullGuia.com">
+                    <!-- SVG Fidelidad Réplica Exacta de logo2Brujula.jpg -->
+                    <svg class="logo-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <!-- Gradiente de luz para la flecha principal y el cuerpo -->
+                            <linearGradient id="yellow-light" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#FFE500" />
+                                <stop offset="100%" stop-color="#FFB800" />
+                            </linearGradient>
+                            <!-- Gradiente de sombra para el relieve 3D -->
+                            <linearGradient id="yellow-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#E6A100" />
+                                <stop offset="100%" stop-color="#B37B00" />
+                            </linearGradient>
+                        </defs>
+
+                        <!-- 1. Arco circular con abertura arriba-derecha y bordes redondeados -->
+                        <path d="M 148 42 A 80 80 0 1 0 180 100" 
+                              fill="none" 
+                              stroke="url(#yellow-light)" 
+                              stroke-width="22" 
+                              stroke-linecap="round" />
+
+                        <!-- 2. Pico / Triángulo Indicador del Norte en la parte superior -->
+                        <path d="M 100 0 L 112 24 L 88 24 Z" fill="url(#yellow-light)" />
+
+                        <!-- 3. Círculo / Punto flotante (Dot) en la brecha del arco -->
+                        <circle cx="166" cy="42" r="11" fill="url(#yellow-light)" />
+
+                        <!-- 4. Flecha/Agulla central (Chevron 3D apuntando al noreste) -->
+                        <!-- Cara izquierda/superior brillante -->
+                        <path d="M 55 125 L 140 68 L 100 100 Z" fill="url(#yellow-light)" />
+                        <!-- Cara derecha/inferior en sombra -->
+                        <path d="M 55 125 L 100 100 L 96 148 Z" fill="url(#yellow-dark)" />
+                    </svg>
+                    <div class="logo-text-group">
+                        <span class="logo-brand">FullGuia<span>.com</span></span>
+                        <span class="logo-subtext">DIRECTORIO COMERCIAL</span>
+                    </div>
+                </a>
+
+                <!-- Navegación Desktop -->
+                <nav class="main-nav">
+                    <a href="index.html" class="nav-link active">Inicio</a>
+                    <a href="categorias.html" class="nav-link">Categorías</a>
+                    <a href="categoria.html" class="nav-link">Negocios</a>
+                    <a href="#ofertas" class="nav-link">Ofertas</a>
+                    <a href="#" class="nav-link">Noticias</a>
+                    <a href="#" class="nav-link">Contacto</a>
+                </nav>
+
+                <!-- Acciones del Header -->
+                <div class="header-actions">
+                    <button class="btn btn-primary publish-btn-header" data-fg="publicar">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Publica tu empresa
+                    </button>
+                    <button class="icon-btn" aria-label="Favoritos">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.72-8.72 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </button>
+                    <button class="icon-btn" aria-label="Mi Perfil">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="container">
+
+        <!-- ==========================================================================
+             HERO SECTION
+             ========================================================================== -->
+        <section class="hero-section">
+            <div class="hero-grid">
+                <!-- Columna Izquierda: Mensaje Principal y Buscador -->
+                <div>
+                    <h1 class="hero-title">Encuentra los mejores negocios de tu región</h1>
+                    <p class="hero-subtitle">Busca, compara y contacta directo por WhatsApp.</p>
+                    <div class="search-container" id="buscar">
+                        <form class="search-form" id="fg-buscador" action="categoria.html" method="get" role="search">
+                            <label class="search-field">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="search" name="q" id="fg-q" placeholder="¿Qué buscas? Ej: hotel, pizza, gimnasio" aria-label="Qué buscas" autocomplete="off" maxlength="80">
+                            </label>
+                            <span class="search-divider"></span>
+                            <label class="search-field">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                <select name="cat" id="fg-cat" aria-label="Categoría">
+                                    <option value="">Todas las categorías</option>
+                                </select>
+                            </label>
+                            <button type="submit" class="btn btn-primary btn-search">Buscar</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Embed de Video Multimedia (se carga al hacer clic) -->
+                <div>
+                    <div class="video-box">
+                        <button type="button" class="fg-video" data-video="7vw3rFRuvJ0" aria-label="Reproducir video: Descubre lo mejor de nuestra región">
+                            <img src="https://i.ytimg.com/vi/7vw3rFRuvJ0/hqdefault.jpg" alt="Descubre lo mejor de nuestra región" width="480" height="360" fetchpriority="high">
+                            <span class="fg-play" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 
+
+        <!-- ==========================================================================
+             CATEGORIES SECTION
+             ========================================================================== -->
+        <section class="categories-section">
+            <div class="categories-grid" id="fg-categorias">
+                <a href="categoria.html?cat=comidas" class="category-card">
+                    <div class="category-icon-box cat-orange">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                    </div>
+                    <span class="category-name">Comidas</span>
+                </a>
+
+                <a href="categoria.html?cat=hoteles" class="category-card">
+                    <div class="category-icon-box cat-blue">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path><path d="M2 17h20"></path><path d="M6 8v9"></path></svg>
+                    </div>
+                    <span class="category-name">Hoteles</span>
+                </a>
+
+                <a href="categoria.html?cat=salud" class="category-card">
+                    <div class="category-icon-box cat-green">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.72-8.72 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                    </div>
+                    <span class="category-name">Salud</span>
+                </a>
+
+                <a href="categoria.html?cat=vehiculos" class="category-card">
+                    <div class="category-icon-box cat-purple">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                    </div>
+                    <span class="category-name">Vehículos</span>
+                </a>
+
+                <a href="categoria.html?cat=hogar" class="category-card">
+                    <div class="category-icon-box cat-yellow">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    </div>
+                    <span class="category-name">Hogar</span>
+                </a>
+
+                <a href="categoria.html?cat=tecnologia" class="category-card">
+                    <div class="category-icon-box cat-cyan">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    </div>
+                    <span class="category-name">Tecnología</span>
+                </a>
+
+                <a href="categoria.html?cat=educacion" class="category-card">
+                    <div class="category-icon-box cat-red">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
+                    </div>
+                    <span class="category-name">Educación</span>
+                </a>
+
+                <a href="categorias.html" class="category-card">
+                    <div class="category-icon-box cat-gray">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+                    </div>
+                    <span class="category-name">Más categorías</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- ==========================================================================
+             MAIN CONTENT LAYOUT (BUSINESSES + SIDEBAR)
+             ========================================================================== -->
+        <div class="content-layout">
+            
+            <!-- Columna Principal: Empresas Destacadas -->
+            <section>
+                <div class="section-header">
+                    <h2 class="section-title">Negocios destacados</h2>
+                    <a href="categoria.html" class="see-all-link">Ver todos</a>
+                </div>
+
+                <div class="businesses-grid" id="fg-destacados" aria-live="polite">
+                    <div class="business-card fg-sk-card" aria-hidden="true"><div class="business-image-wrapper fg-sk"></div><div class="business-content"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span></div></div>
+                    <div class="business-card fg-sk-card" aria-hidden="true"><div class="business-image-wrapper fg-sk"></div><div class="business-content"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span></div></div>
+                    <div class="business-card fg-sk-card" aria-hidden="true"><div class="business-image-wrapper fg-sk"></div><div class="business-content"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span></div></div>
+                    <div class="business-card fg-sk-card" aria-hidden="true"><div class="business-image-wrapper fg-sk"></div><div class="business-content"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span></div></div>
+                </div>
+
+                <!-- Pagination Pointers -->
+                <div class="pagination-dots" id="fg-dots"></div>
+            </section>
+
+            <!-- Columna Derecha: Sidebar (CTA Negocios + Noticias) -->
+            <aside class="sidebar">
+                <!-- Widget Promocional para Negocios -->
+                <div class="business-cta-card" id="publicar">
+                    <h3 class="cta-title">¿Tienes un negocio?</h3>
+                    <p class="cta-description">Aumenta la visibilidad de tu empresa y llega a más clientes.</p>
+                    
+                    <div class="cta-features">
+                        <div class="cta-feature-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Publicalo</span>
+                        </div>
+                        <div class="cta-feature-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Recibe más clientes</span>
+                        </div>
+                        <div class="cta-feature-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Destaca entre la competencia</span>
+                        </div>
+                        <div class="cta-feature-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Planes desde $29.900 COP/mes</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary cta-button" data-fg="publicar">Publica tu negocio</button>
+                </div>
+
+                <!-- Widget de Noticias y Consejos -->
+                <div class="news-widget">
+                    <div class="section-header" style="margin-bottom: 16px;">
+                        <h3 class="section-title" style="font-size: 1.1rem;">Noticias y consejos</h3>
+                        <a href="#" class="see-all-link" style="font-size: 0.8rem;">Ver todas</a>
+                    </div>
+
+                    <div class="news-list">
+                        <a href="#" class="news-item">
+                            <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=150&q=80" alt="Noticia 1" class="news-thumb" loading="lazy">
+                            <div class="news-content">
+                                <h4 class="news-title">Cómo mejorar la visibilidad de tu negocio local</h4>
+                                <span class="news-date">10 May 2024</span>
+                            </div>
+                        </a>
+
+                        <a href="#" class="news-item">
+                            <img src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=150&q=80" alt="Noticia 2" class="news-thumb" loading="lazy">
+                            <div class="news-content">
+                                <h4 class="news-title">5 claves para atraer más clientes en 2024</h4>
+                                <span class="news-date">2 May 2024</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ==========================================================================
+             OFFERS SECTION
+             ========================================================================== -->
+        <section class="offers-section" id="ofertas">
+            <div class="section-header">
+                <h2 class="section-title">Ofertas destacadas</h2>
+                <a href="#ofertas" class="see-all-link">Ver todas</a>
+            </div>
+
+            <div class="offers-grid" id="fg-ofertas">
+                <div class="offer-card fg-sk-oferta" aria-hidden="true"><div class="offer-image fg-sk"></div></div>
+                <div class="offer-card fg-sk-oferta" aria-hidden="true"><div class="offer-image fg-sk"></div></div>
+                <div class="offer-card fg-sk-oferta" aria-hidden="true"><div class="offer-image fg-sk"></div></div>
+                <div class="offer-card fg-sk-oferta" aria-hidden="true"><div class="offer-image fg-sk"></div></div>
+            </div>
+            <template id="tpl-oferta">
+                <a class="offer-card" data-f="enlace">
+                    <span class="badge-discount" data-f="descuento"></span>
+                    <img src="" alt="" class="offer-image" data-f="imagen" loading="lazy" width="500" height="160">
+                </a>
+            </template>
+        </section>
+
+        <template id="tpl-negocio">
+            <div class="business-card">
+                <span class="badge-featured">Destacado</span>
+                <div class="business-image-wrapper">
+                    <a data-f="enlace" tabindex="-1"><img data-f="imagen" src="" alt="" loading="lazy" width="400" height="160"></a>
+                    <button class="business-fav-btn" aria-label="Guardar en favoritos">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.72-8.72 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </button>
+                    <div class="business-logo">
+                        <img data-f="logo" src="" alt="" loading="lazy" width="52" height="52">
+                    </div>
+                </div>
+                <div class="business-content">
+                    <h3 class="business-title"><a data-f="nombre enlace"></a></h3>
+                    <div class="business-rating">
+                        <div class="stars" data-f="estrellas">★★★★★</div>
+                        <span><strong data-f="rating"></strong> <span data-f="opiniones"></span></span>
+                    </div>
+                    <div class="business-meta">
+                        <span class="business-meta-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path></svg>
+                            <span data-f="etiqueta"></span>
+                        </span>
+                        <span class="business-meta-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 9 0 0 1 18 0z"></path></svg>
+                            <span data-f="ciudad"></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <template id="tpl-categoria">
+            <a href="" class="category-card">
+                <div class="category-icon-box"></div>
+                <span class="category-name"></span>
+            </a>
+        </template>
+    </main>
+
+    <!-- ==========================================================================
+         FOOTER
+         ========================================================================== -->
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="logo-container" style="filter: brightness(0) invert(1);">
+                        <!-- Versión del logo para el footer -->
+                        <svg class="logo-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="height: 38px;">
+                            <path d="M 148 42 A 80 80 0 1 0 180 100" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+                            <path d="M 100 0 L 112 24 L 88 24 Z" fill="#FFFFFF" />
+                            <circle cx="166" cy="42" r="11" fill="#FFFFFF" />
+                            <path d="M 55 125 L 140 68 L 100 100 Z" fill="#FFFFFF" />
+                            <path d="M 55 125 L 100 100 L 96 148 Z" fill="#E2E8F0" />
+                        </svg>
+                        <span class="logo-brand" style="color: #FFF;">FullGuia<span style="color: var(--primary);">.com</span></span>
+                    </div>
+                    <p>El directorio comercial definitivo para descubrir los mejores comercios, servicios y ofertas de tu ciudad.</p>
+                </div>
+
+                <div>
+                    <h4 class="footer-title">Navegación</h4>
+                    <div class="footer-links">
+                        <a href="index.html">Inicio</a>
+                        <a href="categorias.html">Categorías</a>
+                        <a href="categoria.html">Empresas</a>
+                        <a href="#ofertas">Ofertas</a>
+                        <a href="#">Noticias</a>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="footer-title">Para Negocios</h4>
+                    <div class="footer-links">
+                        <a href="#" data-fg="publicar">Publica tu empresa</a>
+                        <a href="#">Planes y precios</a>
+                        <a href="#">Casos de éxito</a>
+                        <a href="#">Centro de ayuda</a>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="footer-title">Legal & Contacto</h4>
+                    <div class="footer-links">
+                        <a href="#">Términos y condiciones</a>
+                        <a href="#">Política de privacidad</a>
+                        <a href="#">Contacto directos</a>
+                        <a href="#">Soporte técnico</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2026 FullGuia.com. Todos los derechos reservados</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==========================================================================
+         MOBILE BOTTOM NAVIGATION BAR
+         ========================================================================== -->
+    <nav class="bottom-nav">
+        <a href="index.html" class="bottom-nav-item active">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            <span>Inicio</span>
+        </a>
+        <a href="categorias.html" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Categorías</span>
+        </a>
+        <a href="#buscar" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>Buscar</span>
+        </a>
+        <a href="#ofertas" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <span>Ofertas</span>
+        </a>
+        <a href="#" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 1-4-4H8a4 4 0 0 1-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Perfil</span>
+        </a>
+    </nav>
+
+    <!-- Interacciones (favoritos, buscador, datos): ver js/fullguia.js -->
+</body>
+</html>

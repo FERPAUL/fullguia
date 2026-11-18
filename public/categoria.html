@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FullGuia.com - Encuentra los mejores hoteles, hostales y alojamientos de tu región. Reserva, compara y conecta.">
+    
+    <!-- TemplateBeginEditable name="doctitle" -->
+    <title>Directorio Comercial de Hoteles | FullGuia.com</title>
+    <!-- TemplateEndEditable -->
+
+    <!-- Google Fonts: Poppins / Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FullGuia: conexión a datos (no editar el diseño aquí) -->
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://biajiyiyjtqocqrabrnu.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="stylesheet" href="css/fullguia.css">
+    <script src="js/config.js" defer></script>
+    <script src="js/fullguia.js" defer></script>
+
+    <!-- TemplateBeginEditable name="head" -->
+    <!-- Insertar meta etiquetas adicionales o estilos específicos de esta página aquí -->
+    <!-- TemplateEndEditable -->
+
+    <style>
+        /* ==========================================================================
+           1. VARIABLES & BASE STYLES
+           ========================================================================== */
+        :root {
+            --primary: #FFC700;        /* Amarillo FullGuia */
+            --primary-hover: #E6B400;  /* Amarillo Hover */
+            --secondary: #1A1A1A;      /* Negro / Gris Oscuro */
+            --text-main: #2D3748;      /* Texto principal */
+            --text-muted: #718096;     /* Texto secundario */
+            --bg-light: #F8FAFC;       /* Fondo suave */
+            --bg-card: #FFFFFF;        /* Fondo blanco tarjetas */
+            --border: #E2E8F0;         /* Bordes */
+            --hotel-blue: #0077FF;     /* Color de acento para sección Hoteles */
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.04);
+            --shadow-md: 0 8px 16px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 24px rgba(0,0,0,0.1);
+            --transition: all 0.25s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            line-height: 1.5;
+            padding-bottom: 70px;
+        }
+
+        @media (min-width: 992px) {
+            body {
+                padding-bottom: 0;
+            }
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Container global */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* Componentes reutilizables */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 10px 18px;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--secondary);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-whatsapp {
+            background-color: #25D366;
+            color: #FFFFFF;
+        }
+
+        .btn-whatsapp:hover {
+            background-color: #1DA851;
+            color: #FFFFFF;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--secondary);
+            background-color: var(--secondary);
+            color: white;
+        }
+
+        .badge-featured {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background-color: var(--primary);
+            color: var(--secondary);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            z-index: 2;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-tag {
+            background: #EBF8FF;
+            color: var(--hotel-blue);
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        /* Encabezados de letra del alfabeto */
+        .alphabet-letter-heading {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--secondary);
+            background: #FFFFFF;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            border-radius: var(--radius-md);
+            border: 2px solid var(--primary);
+            box-shadow: var(--shadow-sm);
+            margin: 24px 0 16px 0;
+        }
+
+        .alphabet-section:first-child .alphabet-letter-heading {
+            margin-top: 0;
+        }
+
+        .alphabet-group {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ==========================================================================
+           2. HEADER & NAVIGATION
+           ========================================================================== */
+        .site-header {
+            background-color: #FFFFFF;
+            box-shadow: var(--shadow-sm);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 76px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .logo-svg {
+            height: 42px;
+            width: auto;
+        }
+
+        .logo-text-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--secondary);
+            line-height: 1;
+        }
+
+        .logo-brand span {
+            color: var(--primary);
+        }
+
+        .logo-subtext {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .main-nav {
+            display: none;
+        }
+
+        @media (min-width: 992px) {
+            .main-nav {
+                display: flex;
+                align-items: center;
+                gap: 24px;
+            }
+
+            .nav-link {
+                color: var(--text-main);
+                font-weight: 500;
+                font-size: 0.95rem;
+                padding: 6px 0;
+                position: relative;
+                transition: var(--transition);
+            }
+
+            .nav-link:hover, .nav-link.active {
+                color: var(--secondary);
+            }
+
+            .nav-link.active::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 3px;
+                background-color: var(--primary);
+                border-radius: 2px;
+            }
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .icon-btn:hover {
+            background-color: var(--bg-light);
+            color: var(--secondary);
+        }
+
+        .publish-btn-header {
+            display: none;
+        }
+
+        @media (min-width: 640px) {
+            .publish-btn-header {
+                display: inline-flex;
+            }
+        }
+
+        /* ==========================================================================
+           3. BREADCRUMB & HERO BANNER FOR HOTELS
+           ========================================================================== */
+        .hotel-hero {
+            background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%);
+            color: #FFFFFF;
+            padding: 32px 0 40px 0;
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            margin-bottom: 32px;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #94A3B8;
+            margin-bottom: 16px;
+        }
+
+        .breadcrumb a {
+            color: #E2E8F0;
+            transition: var(--transition);
+        }
+
+        .breadcrumb a:hover {
+            color: var(--primary);
+        }
+
+        .hotel-hero-header {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .hotel-hero-title {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        @media (min-width: 768px) {
+            .hotel-hero-title {
+                font-size: 2.5rem;
+            }
+        }
+
+        .hotel-hero-desc {
+            font-size: 1rem;
+            color: #CBD5E1;
+            max-width: 700px;
+        }
+
+        /* ==========================================================================
+           4. LAYOUT ANCHO COMPLETO
+           ========================================================================== */
+        .directory-layout {
+            display: block;
+            margin-bottom: 40px;
+        }
+
+        /* ==========================================================================
+           5. HOTEL CARDS LISTING
+           ========================================================================== */
+        .listing-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .results-count {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .sort-select {
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: #FFFFFF;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .hotels-list {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        /* Hotel Card Item Horizontal */
+        .hotel-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        @media (min-width: 640px) {
+            .hotel-card {
+                grid-template-columns: 280px 1fr;
+            }
+        }
+
+        .hotel-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .hotel-img-wrapper {
+            position: relative;
+            height: 200px;
+        }
+
+        @media (min-width: 640px) {
+            .hotel-img-wrapper {
+                height: 100%;
+            }
+        }
+
+        .hotel-img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .hotel-fav-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(4px);
+            border: none;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: var(--transition);
+        }
+
+        .hotel-fav-btn:hover {
+            color: #E53935;
+            background: #FFFFFF;
+        }
+
+        .hotel-info {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .hotel-header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .hotel-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--secondary);
+            margin-bottom: 4px;
+        }
+
+        .hotel-location {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .hotel-rating-badge {
+            background: #EFF6FF;
+            border: 1px solid #DBEAFE;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .rating-score {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--hotel-blue);
+        }
+
+        .rating-reviews {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .hotel-amenities {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 4px 0;
+        }
+
+        .amenity-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            background: var(--bg-light);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .hotel-footer-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+            margin-top: 4px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .hotel-price {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .price-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .price-amount {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--secondary);
+        }
+
+        .hotel-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Paginación */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 32px;
+        }
+
+        .page-link {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .page-link.active, .page-link:hover {
+            background: var(--secondary);
+            color: #FFFFFF;
+            border-color: var(--secondary);
+        }
+
+        /* ==========================================================================
+           6. FOOTER & MOBILE NAV
+           ========================================================================== */
+        .site-footer {
+            background-color: var(--secondary);
+            color: #FFFFFF;
+            padding: 48px 0 24px 0;
+            margin-top: 40px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 32px;
+            margin-bottom: 40px;
+        }
+
+        @media (min-width: 768px) {
+            .footer-grid {
+                grid-template-columns: 2fr repeat(3, 1fr);
+            }
+        }
+
+        .footer-brand p {
+            color: #A0AEC0;
+            font-size: 0.9rem;
+            margin-top: 12px;
+            max-width: 300px;
+        }
+
+        .footer-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #FFFFFF;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .footer-links a {
+            color: #A0AEC0;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid #2D3748;
+            padding-top: 24px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #A0AEC0;
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background-color: #FFFFFF;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 9999;
+            border-top: 1px solid var(--border);
+        }
+
+        @media (min-width: 992px) {
+            .bottom-nav {
+                display: none;
+            }
+        }
+
+        .bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 600;
+            width: 20%;
+            height: 100%;
+        }
+
+        .bottom-nav-item.active {
+            color: var(--secondary);
+        }
+
+        .bottom-nav-item.active svg {
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body data-fg-pagina="categoria">
+
+    <!-- ==========================================================================
+         HEADER / ENCABEZADO
+         ========================================================================== -->
+    <header class="site-header">
+        <div class="container">
+            <div class="header-content">
+                <!-- Logo corporativo FullGuia.com -->
+                <a href="index.html" class="logo-container" title="FullGuia.com">
+                    <svg class="logo-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="yellow-light" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#FFE500" />
+                                <stop offset="100%" stop-color="#FFB800" />
+                            </linearGradient>
+                            <linearGradient id="yellow-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#E6A100" />
+                                <stop offset="100%" stop-color="#B37B00" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M 148 42 A 80 80 0 1 0 180 100" fill="none" stroke="url(#yellow-light)" stroke-width="22" stroke-linecap="round" />
+                        <path d="M 100 0 L 112 24 L 88 24 Z" fill="url(#yellow-light)" />
+                        <circle cx="166" cy="42" r="11" fill="url(#yellow-light)" />
+                        <path d="M 55 125 L 140 68 L 100 100 Z" fill="url(#yellow-light)" />
+                        <path d="M 55 125 L 100 100 L 96 148 Z" fill="url(#yellow-dark)" />
+                    </svg>
+                    <div class="logo-text-group">
+                        <span class="logo-brand">FullGuia<span>.com</span></span>
+                        <span class="logo-subtext">DIRECTORIO COMERCIAL</span>
+                    </div>
+                </a>
+
+                <!-- Navegación Principal -->
+                <nav class="main-nav">
+                    <a href="index.html" class="nav-link">Inicio</a>
+                    <a href="categorias.html" class="nav-link active">Categorías</a>
+                    <a href="categoria.html?cat=hoteles" class="nav-link active" style="color: var(--hotel-blue);" id="fg-nav-cat">Hoteles</a>
+                    <a href="#" class="nav-link">Ofertas</a>
+                    <a href="#" class="nav-link">Noticias</a>
+                    <a href="#" class="nav-link">Contacto</a>
+                </nav>
+
+                <!-- Acciones del Header -->
+                <div class="header-actions">
+                    <button class="btn btn-primary publish-btn-header" data-fg="publicar">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Publica tu Hotel
+                    </button>
+                    <button class="icon-btn" aria-label="Favoritos">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.72-8.72 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==========================================================================
+         HERO SECTION DE HOTELES
+         ========================================================================== -->
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="container">
+        <div class="directory-layout">
+
+            <!-- ==========================================================================
+                 LISTADO DE HOTELES (ZONA EDITABLE PRINCIPAL DREAMWEAVER)
+                 ========================================================================== -->
+            <section class="hotels-listing">
+                
+                <div class="listing-header">
+                    <span class="results-count" id="fg-contador">Mostrando <strong id="fg-total">&nbsp;</strong> <span id="fg-titulo">Hoteles</span> disponibles</span>
+                    <form id="fg-filtro" role="search" action="categoria.html" method="get">
+                        <input type="hidden" name="cat" id="fg-filtro-cat">
+                        <input type="search" name="q" id="fg-filtro-q" class="sort-select" placeholder="Buscar..." aria-label="Buscar en esta categoría" maxlength="80">
+                    </form>
+                </div>
+
+                <!-- TemplateBeginEditable name="ListaHotelesEditable" -->
+                <div class="hotels-list" id="fg-lista" aria-live="polite">
+                    <article class="hotel-card fg-sk-hotel" aria-hidden="true"><div class="hotel-img-wrapper fg-sk"></div><div class="hotel-info"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span><span class="fg-sk fg-sk-linea"></span></div></article>
+                    <article class="hotel-card fg-sk-hotel" aria-hidden="true"><div class="hotel-img-wrapper fg-sk"></div><div class="hotel-info"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span><span class="fg-sk fg-sk-linea"></span></div></article>
+                    <article class="hotel-card fg-sk-hotel" aria-hidden="true"><div class="hotel-img-wrapper fg-sk"></div><div class="hotel-info"><span class="fg-sk fg-sk-linea"></span><span class="fg-sk fg-sk-linea fg-sk-corta"></span><span class="fg-sk fg-sk-linea"></span></div></article>
+                </div>
+                <!-- TemplateEndEditable -->
+
+                <!-- Pagination -->
+                <div class="pagination" id="fg-paginacion"></div>
+            </section>
+        </div>
+        <template id="tpl-seccion">
+            <div class="alphabet-section">
+                <h2 class="alphabet-letter-heading"></h2>
+                <div class="alphabet-group"></div>
+            </div>
+        </template>
+        <template id="tpl-hotel">
+                            <article class="hotel-card">
+                                <span class="badge-featured" data-f="destacado">Destacado</span>
+                                <div class="hotel-img-wrapper">
+                                    <a data-f="enlace" tabindex="-1"><img data-f="imagen" src="" alt="" loading="lazy" width="400" height="260"></a>
+                                    <button class="hotel-fav-btn" aria-label="Guardar en favoritos">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.72-8.72 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                                    </button>
+                                </div>
+                                <div class="hotel-info">
+                                    <div class="hotel-header-info">
+                                        <div>
+                                            <span class="badge-tag" data-f="etiqueta"></span>
+                                            <h2 class="hotel-name"><a data-f="nombre enlace"></a></h2>
+                                            <p class="hotel-location">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 9 0 0 1 18 0z"></path></svg>
+                                                <span data-f="ubicacion"></span>
+                                            </p>
+                                        </div>
+                                        <div class="hotel-rating-badge">
+                                            <div class="rating-score" data-f="rating"></div>
+                                            <div class="rating-reviews" data-f="opiniones"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="hotel-amenities" data-f="amenidades"></div>
+
+                                    <div class="hotel-footer-info">
+                                        <div class="hotel-price">
+                                            <span class="price-label" data-f="precio_label"></span>
+                                            <span class="price-amount" data-f="precio"></span>
+                                        </div>
+                                        <div class="hotel-actions">
+                                            <a href="#" class="btn btn-outline" data-f="enlace">Ver Detalle</a>
+                                            <a href="#" target="_blank" rel="noopener" class="btn btn-whatsapp" data-f="whatsapp">
+                                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+                                                WhatsApp
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+        </template>
+    </main>
+
+    <!-- ==========================================================================
+         FOOTER
+         ========================================================================== -->
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="logo-container" style="filter: brightness(0) invert(1);">
+                        <svg class="logo-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="height: 38px;">
+                            <path d="M 148 42 A 80 80 0 1 0 180 100" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+                            <path d="M 100 0 L 112 24 L 88 24 Z" fill="#FFFFFF" />
+                            <circle cx="166" cy="42" r="11" fill="#FFFFFF" />
+                            <path d="M 55 125 L 140 68 L 100 100 Z" fill="#FFFFFF" />
+                            <path d="M 55 125 L 100 100 L 96 148 Z" fill="#E2E8F0" />
+                        </svg>
+                        <span class="logo-brand" style="color: #FFF;">FullGuia<span style="color: var(--primary);">.com</span></span>
+                    </div>
+                    <p>El directorio comercial definitivo para descubrir hoteles, comercios y servicios de tu región.</p>
+                </div>
+
+                <div>
+                    <h4 class="footer-title">Navegación</h4>
+                    <div class="footer-links">
+                        <a href="index.html">Inicio</a>
+                        <a href="categorias.html">Categorías</a>
+                        <a href="categoria.html?cat=hoteles">Directori de Hoteles</a>
+                        <a href="index.html#ofertas">Ofertas</a>
+                        <a href="#">Noticias</a>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="footer-title">Para Hoteleros</h4>
+                    <div class="footer-links">
+                        <a href="#" data-fg="publicar">Publica tu Hotel</a>
+                        <a href="#">Planes de Destacado</a>
+                        <a href="#">Centro de Ayuda</a>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="footer-title">Legal & Contacto</h4>
+                    <div class="footer-links">
+                        <a href="#">Términos y condiciones</a>
+                        <a href="#">Política de privacidad</a>
+                        <a href="#">Contacto directo</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2026 FullGuia.com. Todos los derechos reservados</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==========================================================================
+         MOBILE BOTTOM NAVIGATION BAR
+         ========================================================================== -->
+    <nav class="bottom-nav">
+        <a href="index.html" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            <span>Inicio</span>
+        </a>
+        <a href="categorias.html" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Categorías</span>
+        </a>
+        <a href="categoria.html?cat=hoteles" class="bottom-nav-item active" id="fg-bottom-cat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path></svg>
+            <span>Hoteles</span>
+        </a>
+        <a href="index.html#ofertas" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <span>Ofertas</span>
+        </a>
+        <a href="#" class="bottom-nav-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 1-4-4H8a4 4 0 0 1-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Perfil</span>
+        </a>
+    </nav>
+
+    <!-- Interacciones (favoritos, listado, paginación): ver js/fullguia.js -->
+</body>
+</html>
