@@ -1,0 +1,9 @@
+{
+  "name": "fullguia-qa",
+  "private": true,
+  "version": "1.0.0",
+  "description": "QA de FullGuia: estatico, fidelidad, RLS, busqueda, humo jsdom, carga, imagenes, advisors, Lighthouse",
+  "dependencies": {
+    "pg": "8.13.1"
+  }
+}
