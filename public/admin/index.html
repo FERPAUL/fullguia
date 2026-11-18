@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Panel FullGuia</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <script>window.__BOOT__ = { app: 'FullGuia', empresa: 'FullGuia.com', look: {} };</script>
+  <script>
+    // Pre-pintado: aplica colores, forma y modo oscuro antes de que exista la interfaz, para que no parpadee.
+    (function () {
+      try {
+        var d = document.documentElement, g = JSON.parse(localStorage.getItem('fg_look') || 'null'), l = g || (window.__BOOT__ || {}).look || {}, v = l.vars || {};
+        for (var k in v) d.style.setProperty(k, v[k]);
+        d.setAttribute('data-ui', l.ui || 'soft');
+        d.setAttribute('data-shape', l.shape || 'rounded');
+        d.setAttribute('data-sb', l.sb || 'navy');
+        if (localStorage.getItem('rs_mode') === '"dark"') d.classList.add('dark-mode');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://biajiyiyjtqocqrabrnu.supabase.co" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="../js/config.js"></script>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div id="root">
+    <div class="boot-splash"><div class="boot-dot"></div><span>Cargando…</span></div>
+  </div>
+  <script src="cargador.js"></script>
+</body>
+</html>
