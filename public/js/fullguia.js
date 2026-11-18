@@ -83,13 +83,18 @@
   // ---------------------------------------------------------------------------
   // Datos
   // ---------------------------------------------------------------------------
+  // GET sin cabeceras propias = petición "simple": el navegador no hace la consulta previa de CORS
+  // (un viaje de ida y vuelta menos por página). La publishable key es pública por diseño.
   function rpc(fn, args) {
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : null;
-    return fetch(C.SUPABASE_URL + '/rest/v1/rpc/' + fn, {
-      method: 'POST',
-      headers: { apikey: C.SUPABASE_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify(args || {}),
+    var a = args || {};
+    var qs = ['apikey=' + encodeURIComponent(C.SUPABASE_KEY)];
+    Object.keys(a).forEach(function (k) {
+      if (a[k] !== null && a[k] !== undefined && a[k] !== '') qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(a[k]));
+    });
+    return fetch(C.SUPABASE_URL + '/rest/v1/rpc/' + fn + '?' + qs.join('&'), {
+      method: 'GET',
       signal: ctrl ? ctrl.signal : undefined
     }).then(function (r) {
       if (timer) clearTimeout(timer);
@@ -172,6 +177,12 @@
       img.sizes = tamanos || '(min-width: 640px) 400px, 100vw';
     }
     img.alt = alt || '';
+  }
+
+  // Único punto de navegación (las pruebas automáticas lo pueden interceptar).
+  function navegar(url) {
+    if (typeof window.__fgNavegar === 'function') return window.__fgNavegar(url);
+    window.location.href = url;
   }
 
   function soloDigitos(s) { return String(s || '').replace(/\D+/g, ''); }
@@ -353,7 +364,7 @@
         } else if (document.getElementById('publicar')) {
           document.getElementById('publicar').scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          window.location.href = 'index.html#publicar';
+          navegar('index.html#publicar');
         }
       });
     });
@@ -385,7 +396,7 @@
     if (!card) return null;
     campos(card, 'enlace').forEach(function (a) { a.href = urlNegocio(n.slug); });
     texto(card, 'nombre', n.nombre);
-    ponerImagen(campos(card, 'imagen')[0], n.imagen, n.imagen_mini, n.nombre, '(min-width: 1200px) 300px, (min-width: 640px) 50vw, 100vw');
+    ponerImagen(campos(card, 'imagen')[0], n.imagen, n.imagen_mini, n.nombre, '(min-width: 1280px) 220px, (min-width: 1024px) calc((100vw - 420px) / 4), (min-width: 640px) calc(50vw - 28px), calc(100vw - 34px)');
     var logo = campos(card, 'logo')[0];
     if (n.logo) ponerImagen(logo, n.logo, n.logo, 'Logo ' + n.nombre);
     else if (logo) logo.parentNode.parentNode.removeChild(logo.parentNode);
@@ -399,15 +410,17 @@
     return card;
   }
 
-  function llenarHotel(n, detalle) {
+  // prioridad: la primera foto visible (la más grande de la pantalla) se pide primero y sin "lazy".
+  function llenarHotel(n, detalle, prioridad) {
     var card = clonar('tpl-hotel');
     if (!card) return null;
     mostrar(campos(card, 'destacado')[0], !!n.destacado);
     campos(card, 'enlace').forEach(function (a) { a.href = urlNegocio(n.slug); });
     texto(card, 'nombre', n.nombre);
-    ponerImagen(campos(card, 'imagen')[0], n.imagen, n.imagen_mini, n.nombre,
-      detalle ? '(min-width: 640px) 400px, 100vw' : '(min-width: 640px) 300px, 100vw');
-    if (detalle) { var im = campos(card, 'imagen')[0]; if (im) im.loading = 'eager'; }
+    var im = campos(card, 'imagen')[0];
+    if (im && (detalle || prioridad)) { im.loading = 'eager'; im.setAttribute('fetchpriority', 'high'); }
+    ponerImagen(im, n.imagen, n.imagen_mini, n.nombre,
+      '(min-width: 640px) 280px, calc(100vw - 34px)');
 
     var et = campos(card, 'etiqueta')[0];
     if (et) {
@@ -520,7 +533,7 @@
         a.href = urlNegocio(o.negocio_slug);
         texto(a, 'descuento', o.descuento);
         ponerImagen(campos(a, 'imagen')[0], o.imagen, o.imagen_mini, o.titulo + ' · ' + o.negocio,
-          '(min-width: 1024px) 300px, (min-width: 640px) 50vw, 100vw');
+          '(min-width: 1280px) 300px, (min-width: 1024px) calc(25vw - 28px), (min-width: 640px) calc(50vw - 28px), calc(100vw - 34px)');
         frag.appendChild(a);
       });
       ofertas.replaceChildren(frag);
@@ -548,7 +561,7 @@
         var partes = [];
         if (cat) partes.push('cat=' + encodeURIComponent(cat));
         if (q.trim()) partes.push('q=' + encodeURIComponent(q.trim()));
-        window.location.href = 'categoria.html' + (partes.length ? '?' + partes.join('&') : '');
+        navegar('categoria.html' + (partes.length ? '?' + partes.join('&') : ''));
       });
     }
 
@@ -672,7 +685,7 @@
       var frag = document.createDocumentFragment();
       var seccion = null;
       var letraActual = null;
-      items.forEach(function (n) {
+      items.forEach(function (n, i) {
         var letra = n.destacado ? '★' : (normalizar(n.nombre).charAt(0).toUpperCase() || '#');
         if (!/^[A-Z★]/.test(letra)) letra = '#';
         if (letra !== letraActual) {
@@ -684,7 +697,7 @@
           frag.appendChild(seccion);
           letraActual = letra;
         }
-        var card = llenarHotel(n, false);
+        var card = llenarHotel(n, false, i === 0);
         if (card) $('.alphabet-group', seccion).appendChild(card);
       });
       lista.replaceChildren(frag);
