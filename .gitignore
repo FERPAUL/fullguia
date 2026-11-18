@@ -1,0 +1,7 @@
+.env
+.env.*
+node_modules/
+qa/node_modules/
+qa/out/
+supabase/.temp/
+supabase/.branches/
