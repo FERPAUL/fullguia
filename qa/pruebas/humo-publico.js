@@ -103,6 +103,9 @@ module.exports = async function (ctx) {
   const fav = A.d.querySelector('#fg-destacados .business-fav-btn');
   fav.dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
   ctx.ok('', 'Favoritos: el corazón se marca y se recuerda', fav.querySelector('svg').getAttribute('fill') === 'currentColor' && /negocio-5/.test(A.w.localStorage.getItem('fg_v1_favs') || ''));
+  const perfil = A.d.querySelector('.icon-btn[aria-label="Mi Perfil"]');
+  perfil.dispatchEvent(new A.w.MouseEvent('click', { bubbles: true, cancelable: true }));
+  ctx.ok('', '"Mi Perfil" no se comporta como favorito (no cambia su ícono)', perfil.querySelector('svg').getAttribute('fill') === 'none');
   // Publicar
   A.d.querySelector('[data-fg="publicar"]').dispatchEvent(new A.w.MouseEvent('click', { bubbles: true, cancelable: true }));
   ctx.ok('R28', '"Publica tu negocio" sin WhatsApp configurado: lleva a la sección de planes', A.w.__abiertos.length === 0 && A.w.__scroll === 'publicar');
@@ -178,6 +181,10 @@ module.exports = async function (ctx) {
   ctx.ok('R11', 'Categoría vacía: "Aún no hay negocios en esta categoría"', /Aún no hay negocios en esta categoría/.test(V2.d.getElementById('fg-lista').textContent));
   const X = await abrir('categoria.html', '?cat=no-existe', { buscar_negocios: { total: 0, items: [], categoria: null } });
   ctx.ok('R11', 'Categoría inexistente: mensaje "Esta categoría no existe"', /Esta categoría no existe/.test(X.d.getElementById('fg-lista').textContent));
+
+  // Hallazgo de /code-review: un enlace mal formado no debe tumbar la página
+  const Mal = await abrir('categoria.html', '?q=50%&cat=hoteles', (fn, b) => Object.assign(resp(b.cat), { pagina: 1 }));
+  ctx.ok('R11', 'Enlace mal formado (?q=50%) no rompe la página: busca el texto tal cual', Mal.llamadas.length === 1 && Mal.llamadas[0].body.q === '50%' && $$(Mal.d, '#fg-lista .hotel-card').length === 20);
 
   // ================= DETALLE =================
   const det = { version: '1', negocio: neg(7, { nombre: 'Hotel Detalle', descripcion: 'Descripción larga\ncon salto', telefono: '6075551234', whatsapp: '573209998877', categoria: 'Hoteles', categoria_slug: 'hoteles',

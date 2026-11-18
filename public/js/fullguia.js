@@ -336,7 +336,8 @@
 
   function activarFavoritos() {
     document.addEventListener('click', function (e) {
-      var btn = e.target.closest && e.target.closest('.business-fav-btn, .hotel-fav-btn, .icon-btn');
+      // Corazón de las tarjetas y el botón "Favoritos" de la cabecera (no "Mi Perfil" ni otros íconos)
+      var btn = e.target.closest && e.target.closest('.business-fav-btn, .hotel-fav-btn, .icon-btn[aria-label="Favoritos"]');
       if (!btn) return;
       e.preventDefault();
       var slug = btn.getAttribute('data-slug');
@@ -587,11 +588,11 @@
     var out = {};
     var q = (window.location.search || '').replace(/^\?/, '');
     if (!q) return out;
+    // Un enlace mal formado (ej. "?q=50%") no debe tumbar la página: se usa el texto tal cual.
+    var dec = function (s) { s = s.replace(/\+/g, ' '); try { return decodeURIComponent(s); } catch (e) { return s; } };
     q.split('&').forEach(function (par) {
       var i = par.indexOf('=');
-      var k = decodeURIComponent((i < 0 ? par : par.slice(0, i)).replace(/\+/g, ' '));
-      var v = i < 0 ? '' : decodeURIComponent(par.slice(i + 1).replace(/\+/g, ' '));
-      out[k] = v;
+      out[dec(i < 0 ? par : par.slice(0, i))] = i < 0 ? '' : dec(par.slice(i + 1));
     });
     return out;
   }

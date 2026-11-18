@@ -28,9 +28,13 @@ async function main() {
     const previos = (await d.query('select (select count(*) from public.negocios)::int n')).rows[0].n;
     await d.query('delete from public.ofertas; delete from public.negocios; delete from public.categorias;');
     console.log('Destino vaciado (' + previos + ' negocios previos)');
+    const copiados = new Set();
     for (const [tabla, cols] of TABLAS) {
       let filas = (await o.query('select ' + cols.join(', ') + ' from public.' + tabla)).rows;
-      if (sinDemo && cols.indexOf('demo') >= 0) filas = filas.filter((f) => !f.demo);
+      if (sinDemo && tabla === 'negocios') filas = filas.filter((f) => !f.demo);
+      // Ofertas: solo las de negocios que sí se copiaron (si no, fallaría la llave foránea)
+      if (tabla === 'ofertas') filas = filas.filter((f) => copiados.has(f.negocio_id) && !(sinDemo && f.demo));
+      if (tabla === 'negocios') filas.forEach((f) => copiados.add(f.id));
       for (const f of filas) {
         const vals = cols.map((c) => f[c]);
         const marcas = cols.map((_, i) => '$' + (i + 1)).join(', ');

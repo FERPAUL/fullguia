@@ -395,7 +395,7 @@ function validarNegocio(d) {
 function limpiarNegocio(d) {
   const x = {};
   EDITABLES_NEG.forEach((k) => { if (d[k] !== undefined) x[k] = d[k]; });
-  x.nombre = String(x.nombre || '').trim();
+  if ('nombre' in x) x.nombre = String(x.nombre || '').trim();
   ['etiqueta', 'ciudad', 'direccion', 'telefono', 'descripcion', 'imagen', 'imagen_mini', 'logo'].forEach((k) => {
     if (k in x) x[k] = String(x[k] == null ? '' : x[k]).trim() || null;
   });
@@ -523,7 +523,7 @@ const ESCRITURAS = {
   saveCategoria: async (d) => {
     const nombre = String(d.nombre || '').trim();
     if (nombre.length < 2 || nombre.length > 60) return { success: false, message: 'El nombre de la categoría debe tener entre 2 y 60 letras.' };
-    const x = { nombre, icono: d.icono || 'mas', color: d.color || 'gray', orden: Math.round(Number(d.orden) || 100), activa: !!Number(d.activa) };
+    const x = { nombre, icono: d.icono || 'mas', color: d.color || 'gray', orden: (d.orden === '' || d.orden == null || isNaN(Number(d.orden)) ? 100 : Math.round(Number(d.orden))), activa: !!Number(d.activa) };
     if (d.slug !== undefined) x.slug = String(d.slug || '').trim();
     const q = esTemporal(d.id) ? sb.from('categorias').insert(x) : sb.from('categorias').update(x).eq('id', d.id);
     const { data, error } = await q.select('*').single();
@@ -545,7 +545,7 @@ const ESCRITURAS = {
     const x = {
       negocio_id: d.negocio_id, titulo: titulo.slice(0, 120), descuento: desc, imagen: d.imagen || null, imagen_mini: d.imagen_mini || null,
       vigente_hasta: /^\d{4}-\d{2}-\d{2}$/.test(String(d.vigente_hasta || '')) ? d.vigente_hasta : null,
-      activa: !!Number(d.activa), orden: Math.round(Number(d.orden) || 100)
+      activa: !!Number(d.activa), orden: (d.orden === '' || d.orden == null || isNaN(Number(d.orden)) ? 100 : Math.round(Number(d.orden)))
     };
     if (!esTemporal(d.id)) {
       const ant = await sb.from('ofertas').select('imagen,imagen_mini').eq('id', d.id).maybeSingle();
@@ -1047,7 +1047,7 @@ function soportaWebp() {
 }
 function validarFoto(file) {
   if (!file) return 'No se recibió ningún archivo.';
-  const ext = String((/\.([a-z0-9]+)$/i.exec(file.name || '') || [])[1] || '').toLowerCase();
+  const ext = extDe(file.name);
   const tipoOk = FOTOS.tipos.indexOf(file.type) >= 0 || (!file.type && ['jpg', 'jpeg', 'png', 'webp'].indexOf(ext) >= 0);
   if (!tipoOk) return 'Formato no permitido (' + (ext || file.type || 'desconocido').toUpperCase() + '). Usa una foto JPG, PNG o WebP.';
   if (file.size > FOTOS.maxBytes) return 'La foto pesa ' + pesoTxt(file.size) + '. El máximo es 10 MB.';
@@ -1142,42 +1142,50 @@ window.fgFotos = { validarFoto, procesarFoto, orientacionExif, soportaWebp, FOTO
 //   clase "foto": value = { grande, mini } (rutas) · clase "logo": value = ruta
 //   onSubida(rutas): avisa qué se subió, para borrarlo si el formulario se cancela.
 const _sub = { n: 0, activo: null };
-function Subir({ clase, value, onChange, carpeta, disabled, onSubida }) {
+// Sube varias versiones a la vez. Si alguna falla, borra las que sí subieron (nunca quedan a medias).
+async function subirVersiones(versiones, carpeta) {
+  const r = await Promise.allSettled(versiones.map((v) => subirBlob(v.blob, v.tipo, carpeta, v.sufijo)));
+  const ok = r.filter((x) => x.status === 'fulfilled').map((x) => x.value);
+  const malo = r.find((x) => x.status === 'rejected');
+  if (malo) { if (ok.length) gsCall('borrarArchivos', [ok]).catch(() => {}); throw malo.reason; }
+  return ok;
+}
+//   seguimiento: el objeto de useSubidas del formulario (registra lo subido y lo que está en curso).
+function Subir({ clase, value, onChange, carpeta, disabled, seguimiento }) {
   const esLogo = clase === 'logo';
   const [local, setLocal] = useState(''), [sub, setSub] = useState(false), [sobre, setSobre] = useState(false);
   const inp = useRef(null), yo = useRef({}), fn = useRef(null), montado = useRef(true);
-  useEffect(() => () => { montado.current = false; }, []);
+  const vista = useRef('');
+  const ponerVista = (u) => { if (vista.current) URL.revokeObjectURL(vista.current); vista.current = u; setLocal(u); };
+  useEffect(() => () => { montado.current = false; if (vista.current) URL.revokeObjectURL(vista.current); }, []);
   const tomar = async (file) => {
     if (!file || disabled || sub) return;
     const err = validarFoto(file);
     if (err) return toast(err, 'warn');
     setSub(true); _sub.n++;
+    if (seguimiento) seguimiento.empezar();
     try {
       const p = await procesarFoto(file, esLogo ? 'logo' : 'foto');
-      const prev = esLogo ? p.logo : p.mini;
-      if (montado.current) setLocal(URL.createObjectURL(prev.blob));   // se ve al instante
-      let res, peso, rutas;
-      if (esLogo) {
-        res = await subirBlob(p.logo.blob, p.logo.tipo, carpeta, 'logo');
-        peso = p.logo.blob.size;
-        rutas = [res];
-      } else {
-        const g = await subirBlob(p.grande.blob, p.grande.tipo, carpeta, 'g');
-        const m = await subirBlob(p.mini.blob, p.mini.tipo, carpeta, 'm');
-        res = { grande: g, mini: m };
-        peso = p.grande.blob.size + p.mini.blob.size;
-        rutas = [g, m];
-      }
+      if (!montado.current) return;                         // se cerró mientras comprimía: no se sube nada
+      ponerVista(URL.createObjectURL((esLogo ? p.logo : p.mini).blob));   // se ve al instante
+      const versiones = esLogo ? [Object.assign({ sufijo: 'logo' }, p.logo)]
+        : [Object.assign({ sufijo: 'g' }, p.grande), Object.assign({ sufijo: 'm' }, p.mini)];
+      const rutas = await subirVersiones(versiones, carpeta);
+      const peso = versiones.reduce((s, v) => s + v.blob.size, 0);
       // Si el formulario se cerró mientras subía, nadie usará estas fotos: se borran (sin huérfanos).
       if (!montado.current) { gsCall('borrarArchivos', [rutas]).catch(() => {}); return; }
-      if (onSubida) onSubida(rutas);
-      onChange(res);
+      if (seguimiento) seguimiento.agregar(rutas);
+      onChange(esLogo ? rutas[0] : { grande: rutas[0], mini: rutas[1] });
       toast('Foto lista (' + pesoTxt(peso) + ')', 'ok');
     } catch (e) {
-      setLocal('');
+      if (montado.current) ponerVista('');
       const m = fallo(e);
       if (m.code === 'AUTH') salir(true); else alerta('No se pudo subir la foto', m.message);
-    } finally { _sub.n--; setSub(false); }
+    } finally {
+      _sub.n--;
+      if (seguimiento) seguimiento.terminar();
+      if (montado.current) setSub(false);
+    }
   };
   fn.current = tomar;
   useEffect(() => {
@@ -1201,16 +1209,23 @@ function Subir({ clase, value, onChange, carpeta, disabled, onSubida }) {
       {hay ? <img src={src} alt="" /> : null}
       {!hay ? <div className="up-txt"><Ic n="fa-image" /><b>{esLogo ? 'Subir logo' : 'Subir foto'}</b><small>JPG, PNG o WebP · máx. 10 MB</small></div> : null}
       {sub ? <div className="up-bar"></div> : null}
-      {hay && !disabled && !sub ? <button type="button" className="up-x" aria-label="Quitar" title="Quitar" onClick={(e) => { e.stopPropagation(); setLocal(''); onChange(esLogo ? '' : { grande: '', mini: '' }); }}><Ic n="fa-xmark" /></button> : null}
+      {hay && !disabled && !sub ? <button type="button" className="up-x" aria-label="Quitar" title="Quitar" onClick={(e) => { e.stopPropagation(); ponerVista(''); onChange(esLogo ? '' : { grande: '', mini: '' }); }}><Ic n="fa-xmark" /></button> : null}
     </div>
   );
 }
-// Lleva la cuenta de lo subido en un formulario: si se cancela, se borra; si se guarda, se borra lo que quedó sin usar.
+// Lleva la cuenta de las fotos NUEVAS de un formulario (nunca las que ya tenía el registro):
+//   cancelar → se borran todas · guardar → se borran las que quedaron sin usar · subiendo() → hay subidas en curso.
+// inicial: fotos nuevas de un intento de guardado que falló (el formulario se reabre con ellas).
 function useSubidas(inicial) {
-  const lista = useRef(inicial || []);
+  const lista = useRef(inicial || []), enCurso = useRef(0);
   return {
     lista,
+    empezar: () => { enCurso.current++; },
+    terminar: () => { enCurso.current = Math.max(0, enCurso.current - 1); },
+    subiendo: () => enCurso.current > 0,
     agregar: (rutas) => { lista.current = lista.current.concat(rutas); },
+    // Fotos nuevas que el registro va a usar (para reabrir el formulario si el guardado falla).
+    nuevasEnUso: (enUso) => lista.current.filter((r) => (enUso || []).indexOf(r) >= 0),
     limpiar: (enUso) => {
       const sobran = lista.current.filter((r) => (enUso || []).indexOf(r) < 0);
       lista.current = [];
@@ -1693,13 +1708,14 @@ function NegocioModal({ row, borrador, cats, onClose, onFallo }) {
   const cerrar = () => { subidas.limpiar([]); onClose(); };
   const extender = (dias) => setD((x) => Object.assign({}, x, { plan: 'destacado', destacado_hasta: sumarDias(x.destacado_hasta && x.destacado_hasta > hoyCO() ? x.destacado_hasta : hoyCO(), dias) }));
   const save = () => {
-    if (_sub.n > 0) return toast('Espera a que termine de subir la foto', 'warn');
+    if (subidas.subiendo()) return toast('Espera a que termine de subir la foto', 'warn');
     const err = validarNegocio(d);
     if (err) return toast(err, 'warn');
     if (!row && enCache('listNegocios', []).some((n) => norm(n.nombre) === norm(d.nombre) && norm(n.ciudad) === norm(d.ciudad))) {
       return toast('Ya existe un negocio con ese nombre en esa ciudad', 'warn');
     }
     const enUso = [d.imagen, d.imagen_mini, d.logo].filter(Boolean);
+    const nuevas = subidas.nuevasEnUso(enUso);
     subidas.limpiar(enUso);
     const cat = cats.find((c) => c.id === d.categoria_id) || {};
     const vista = Object.assign({}, d, {
@@ -1710,7 +1726,7 @@ function NegocioModal({ row, borrador, cats, onClose, onFallo }) {
     optimista('saveNegocio', [d], {
       lecturas: [['listNegocios', []]], aplicar: row ? opt.cambio(row.id, vista) : opt.alta(vista),
       ok: row ? 'Negocio actualizado' : 'Negocio creado',
-      alFallar: () => onFallo({ row, borrador: Object.assign({}, d, { _subidas: enUso }) })
+      alFallar: () => onFallo({ row, borrador: Object.assign({}, d, { _subidas: nuevas }) })
     });
   };
   const wa = normalizarWa(d.whatsapp);
@@ -1743,9 +1759,9 @@ function NegocioModal({ row, borrador, cats, onClose, onFallo }) {
       </Field>
       <Field label="Comodidades / servicios" hint="Una por línea. Puedes usar emojis: 📶 WiFi" wide><Area value={d.amenidades} onChange={set('amenidades')} rows={3} /></Field>
       <Field label="Descripción" wide><Area value={d.descripcion} onChange={set('descripcion')} rows={3} maxLength={4000} /></Field>
-      <Field label="Foto principal" hint="Se guarda en 2 tamaños livianos (WebP)."><Subir clase="foto" value={{ grande: d.imagen, mini: d.imagen_mini }} carpeta="negocios" onSubida={subidas.agregar}
+      <Field label="Foto principal" hint="Se guarda en 2 tamaños livianos (WebP)."><Subir clase="foto" value={{ grande: d.imagen, mini: d.imagen_mini }} carpeta="negocios" seguimiento={subidas}
         onChange={(v) => setD((x) => Object.assign({}, x, { imagen: v.grande || '', imagen_mini: v.mini || '' }))} /></Field>
-      <Field label="Logo" hint="Opcional. Se guarda a 200 px."><Subir clase="logo" value={d.logo} carpeta="logos" onSubida={subidas.agregar} onChange={set('logo')} /></Field>
+      <Field label="Logo" hint="Opcional. Se guarda a 200 px."><Subir clase="logo" value={d.logo} carpeta="logos" seguimiento={subidas} onChange={set('logo')} /></Field>
       <Field label="Visible en el sitio"><Toggle value={d.activo} onChange={set('activo')} label={Number(d.activo) ? 'Publicado' : 'Pausado'} /></Field>
     </FormModal>
   );
@@ -1875,11 +1891,12 @@ function OfertaModal({ row, borrador, negocios, onClose, onFallo }) {
   const set = (k) => (v) => setD((x) => Object.assign({}, x, { [k]: v }));
   const cerrar = () => { subidas.limpiar([]); onClose(); };
   const save = () => {
-    if (_sub.n > 0) return toast('Espera a que termine de subir la foto', 'warn');
+    if (subidas.subiendo()) return toast('Espera a que termine de subir la foto', 'warn');
     if (!d.negocio_id) return toast('Elige el negocio', 'warn');
     if (String(d.titulo || '').trim().length < 2) return toast('Escribe el título de la oferta', 'warn');
     if (!String(d.descuento || '').trim()) return toast('Escribe el descuento, ej. -20% o 2x1', 'warn');
     const enUso = [d.imagen, d.imagen_mini].filter(Boolean);
+    const nuevas = subidas.nuevasEnUso(enUso);
     subidas.limpiar(enUso);
     const neg = negocios.find((n) => n.id === d.negocio_id) || {};
     const vista = Object.assign({}, d, { negocio: neg.nombre || '', activa: Number(d.activa) ? 1 : 0,
@@ -1887,7 +1904,7 @@ function OfertaModal({ row, borrador, negocios, onClose, onFallo }) {
     onClose();
     optimista('saveOferta', [d], {
       lecturas: [['listOfertas', []]], aplicar: row ? opt.cambio(row.id, vista) : opt.alta(vista), ok: row ? 'Oferta actualizada' : 'Oferta creada',
-      alFallar: () => onFallo({ row, borrador: Object.assign({}, d, { _subidas: enUso }) })
+      alFallar: () => onFallo({ row, borrador: Object.assign({}, d, { _subidas: nuevas }) })
     });
   };
   return (
@@ -1897,7 +1914,7 @@ function OfertaModal({ row, borrador, negocios, onClose, onFallo }) {
       <Field label="Descuento" req hint="Lo que sale en la etiqueta amarilla."><Inp value={d.descuento} onChange={set('descuento')} maxLength={12} placeholder="-20%" /></Field>
       <Field label="Vigente hasta" hint="Vacío = sin fecha de fin."><Inp type="date" value={d.vigente_hasta} onChange={set('vigente_hasta')} /></Field>
       <Field label="Orden"><Inp value={d.orden} onChange={set('orden')} inputMode="numeric" maxLength={4} /></Field>
-      <Field label="Foto"><Subir clase="foto" value={{ grande: d.imagen, mini: d.imagen_mini }} carpeta="ofertas" onSubida={subidas.agregar}
+      <Field label="Foto"><Subir clase="foto" value={{ grande: d.imagen, mini: d.imagen_mini }} carpeta="ofertas" seguimiento={subidas}
         onChange={(v) => setD((x) => Object.assign({}, x, { imagen: v.grande || '', imagen_mini: v.mini || '' }))} /></Field>
       <Field label="Activa"><Toggle value={d.activa} onChange={set('activa')} label={Number(d.activa) ? 'Activa' : 'Pausada'} /></Field>
     </FormModal>

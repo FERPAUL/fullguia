@@ -195,6 +195,11 @@ module.exports = async function (ctx) {
     const kb = Number(h.headers.get('content-length') || 0) / 1024;
     ctx.ok('R18', 'Storage: la foto grande subida pesa ≤ 150 KB', kb > 0 && kb <= 150, kb.toFixed(0) + ' KB');
 
+    // Publicar / Pausar varios (base real, con la restricción de nombre de verdad)
+    const pausa = await p.evaluate((id) => window.rsKit.wr('updateNegocios', [id], { activo: 0 }), n.id);
+    const trasPausa = (await db.query('select nombre, activo from public.negocios where id=$1', [n.id])).rows[0];
+    ctx.ok('R17', 'Pausar desde el panel funciona en la base real y conserva el nombre', pausa.success && trasPausa.activo === false && trasPausa.nombre === nombre, JSON.stringify(pausa.message || ''));
+
     // c) REEMPLAZAR la foto: la vieja se borra
     const [b1, b2] = await Promise.all(['g', 'm'].map(async (s) => {
       const ruta = 'negocios/2026/qa-' + Date.now() + '-' + s + '.webp';

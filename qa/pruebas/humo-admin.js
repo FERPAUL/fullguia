@@ -187,6 +187,37 @@ module.exports = async function (ctx) {
   await P.ir('Importar CSV');
   ctx.ok('R20', 'Pantalla Importar CSV con plantilla descargable', !!P.boton('Descargar plantilla') && !!P.boton('Elegir archivo CSV'));
 
+  // ---------- Hallazgos de /code-review (para que no vuelvan) ----------
+  e1.log.length = 0;
+  const masivo = await P.w.rsKit.wr('updateNegocios', ['n1', 'n3'], { activo: 0 });
+  const enviado = (e1.log.find((l) => l[0] === 'update' && l[1] === 'negocios') || [])[2] || {};
+  ctx.ok('R17', 'Publicar/Pausar varios: solo envía el cambio (no borra el nombre)', masivo.success && !('nombre' in enviado) && e1.tablas.negocios.find((n) => n.id === 'n1').nombre === 'Negocio 1' && e1.tablas.negocios.find((n) => n.id === 'n3').activo === false,
+    JSON.stringify(enviado));
+  const cat0 = await P.w.rsKit.wr('saveCategoria', { id: 'c-com', nombre: 'Comidas', icono: 'comidas', color: 'orange', orden: 0, activa: 1 });
+  ctx.ok('R17', 'Orden 0 se guarda como 0 (no se cambia por 100)', cat0.success && e1.tablas.categorias.find((c) => c.id === 'c-com').orden === 0);
+  // Editar un negocio con foto, fallar el guardado y cancelar: la foto vigente NO se borra
+  e1.tablas.negocios.find((n) => n.id === 'n1').imagen = 'negocios/2026/vigente-g.webp';
+  e1.tablas.negocios.find((n) => n.id === 'n1').imagen_mini = 'negocios/2026/vigente-m.webp';
+  await P.ir('Inicio'); await P.ir('Negocios');
+  await esperar(() => P.$$('.tb tbody tr').some((r) => /Negocio 1/.test(r.textContent)));
+  e1.version++;
+  P.$$('.tb tbody tr').find((r) => /Negocio 1/.test(r.textContent)).click();
+  await esperar(() => P.campo('Ciudad'));
+  e1.log.length = 0;
+  e1.fallar = { negocios: { code: '42501', message: 'rls' } };
+  P.boton('Guardar', P.$('.modal')).click();
+  const okB = await esperar(() => P.boton('Entendido'));
+  if (okB) okB.click();
+  await esperar(() => P.campo('Ciudad'));
+  const cB = P.boton('Cancelar', P.$('.modal'));
+  if (cB) cB.click();
+  await new Promise((r) => setTimeout(r, 200));
+  const borro = e1.log.filter((l) => l[0] === 'remove').map((l) => l[1]).flat();
+  const intento = e1.log.some((l) => l[0] === 'update' && l[1] === 'negocios');
+  ctx.ok('R19', 'Guardado fallido + Cancelar: las fotos vigentes del negocio no se borran', intento && !!okB && !borro.some((r) => /vigente/.test(r)),
+    'intento=' + intento + ' aviso=' + !!okB + ' borrados=' + JSON.stringify(borro));
+  delete e1.fallar;
+
   // ---------- R26/R27: configuración y usuarios (admin) ----------
   await P.ir('Configuración');
   ctx.ok('R27', 'Configuración: botones Cargar y Borrar datos demo', !!P.boton('Cargar datos demo') && !!P.boton('Borrar datos demo'));
