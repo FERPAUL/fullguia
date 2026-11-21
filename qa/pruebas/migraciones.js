@@ -34,11 +34,11 @@ module.exports = async function (ctx) {
     const politicasReales = (await c.query("select count(*)::int n from pg_policies where schemaname='public'")).rows[0].n;
     await c.query('begin');
     await c.query(`
-      drop table if exists public.ofertas, public.negocios, public.categorias, public.admins, public.meta cascade;
+      drop table if exists public.videos, public.ofertas, public.negocios, public.categorias, public.admins, public.meta cascade;
       drop function if exists public.version_datos(), public.pagina_inicio(), public.buscar_negocios(text,text,text,int,int),
         public.pagina_negocio(text), public.cargar_demo(), public.borrar_demo(), public.panel_resumen() cascade;
       drop schema if exists privado cascade;`);
-    const vacia = await c.query("select count(*)::int n from pg_tables where schemaname='public' and tablename in ('negocios','categorias','ofertas','admins','meta')");
+    const vacia = await c.query("select count(*)::int n from pg_tables where schemaname='public' and tablename in ('negocios','categorias','ofertas','admins','meta','videos')");
     ctx.ok('R1', 'Base vaciada dentro de la transacción de prueba', vacia.rows[0].n === 0);
     let error = '';
     for (const f of migs) {
@@ -47,10 +47,16 @@ module.exports = async function (ctx) {
     ctx.ok('R1', 'Las ' + migs.length + ' migraciones se aplican en orden sobre una base vacía', !error, error);
     if (!error) {
       const q1 = async (sql) => (await c.query(sql)).rows[0];
-      const t = await q1("select count(*)::int n, bool_and(rowsecurity) rls from pg_tables where schemaname='public' and tablename in ('negocios','categorias','ofertas','admins','meta')");
-      ctx.ok('R1', 'Se crean las 5 tablas con RLS activado', t.n === 5 && t.rls, JSON.stringify(t));
+      const t = await q1("select count(*)::int n, bool_and(rowsecurity) rls from pg_tables where schemaname='public' and tablename in ('negocios','categorias','ofertas','admins','meta','videos')");
+      ctx.ok('R1', 'Se crean las 6 tablas con RLS activado', t.n === 6 && t.rls, JSON.stringify(t));
       const s = await q1("select (select count(*) from public.categorias)::int cats, (select count(*) from public.negocios where demo)::int demo, (select count(*) from public.ofertas)::int ofertas");
       ctx.ok('R1', 'El seed carga 7 categorías, 7 negocios demo y 4 ofertas', s.cats === 7 && s.demo === 7 && s.ofertas === 4, JSON.stringify(s));
+      const sv = await q1("select count(*) filter (where not demo)::int reales, count(*) filter (where demo)::int demo from public.videos");
+      ctx.ok('R29', 'El seed carga el video de la maqueta y 4 videos demo en la galería', sv.reales === 1 && sv.demo === 4, JSON.stringify(sv));
+      await c.query('set local role anon');
+      const pv = await q1("select jsonb_array_length(public.pagina_inicio()->'videos') n");
+      await c.query('reset role');
+      ctx.ok('R29', 'Tras recrear, el inicio entrega los 5 videos al visitante', pv.n === 5, pv.n);
       const p = await q1("select count(*)::int n from pg_policies where schemaname='public'");
       const sp = await q1("select count(*)::int n from pg_policies where schemaname='storage' and policyname like 'negocios_%'");
       ctx.ok('R1', 'Se crean las mismas políticas RLS que tiene la base real (tablas y Storage)', p.n === politicasReales && p.n >= 14 && sp.n === 4,

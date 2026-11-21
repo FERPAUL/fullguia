@@ -21,6 +21,7 @@ const BLOQUES = [
   ['fidelidad', 'Fidelidad de diseño contra originales/'],
   ['migraciones', 'Migraciones: recrear desde cero'],
   ['rls', 'Seguridad (RLS, Storage, roles)'],
+  ['videos', 'Galería de videos (BD, seguridad y función youtube)'],
   ['busqueda', 'Búsqueda y orden'],
   ['humo-publico', 'Humo de interfaz del sitio (jsdom)'],
   ['humo-admin', 'Humo de interfaz del panel (jsdom)'],

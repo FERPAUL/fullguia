@@ -60,7 +60,8 @@ module.exports = async function (ctx) {
 
   // --- ids y plantillas que usa el JS existen en cada página ---
   const REQ = {
-    'index.html': ['fg-destacados', 'fg-dots', 'fg-ofertas', 'fg-categorias', 'fg-buscador', 'fg-q', 'fg-cat', 'tpl-negocio', 'tpl-categoria', 'tpl-oferta', 'publicar', 'ofertas', 'buscar'],
+    'index.html': ['fg-destacados', 'fg-dots', 'fg-ofertas', 'fg-categorias', 'fg-buscador', 'fg-q', 'fg-cat', 'tpl-negocio', 'tpl-categoria', 'tpl-oferta', 'publicar', 'ofertas', 'buscar',
+      'fg-galeria', 'fg-pista', 'fg-gal-titulo', 'fg-gal-puntos', 'fg-gal-contador', 'fg-sonido', 'tpl-video'],
     'categoria.html': ['fg-lista', 'fg-paginacion', 'fg-total', 'fg-titulo', 'fg-filtro', 'fg-filtro-q', 'fg-filtro-cat', 'fg-nav-cat', 'fg-bottom-cat', 'tpl-seccion', 'tpl-hotel'],
     'negocio.html': ['fg-detalle', 'fg-nombre', 'fg-descripcion', 'fg-miga-cat', 'fg-miga-nombre', 'fg-detalle-ofertas', 'fg-ofertas-lista', 'tpl-hotel', 'tpl-oferta-detalle', 'fg-nav-cat'],
     'categorias.html': ['fg-categorias', 'tpl-categoria']

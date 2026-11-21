@@ -32,7 +32,7 @@ function crearSupabaseFalso(estado) {
   }
 
   function from(tabla) {
-    const q = { op: 'select', filtros: [], campos: '*', datos: null, uno: false, quizas: false, desde: 0, hasta: 1e9 };
+    const q = { op: 'select', filtros: [], campos: '*', datos: null, uno: false, quizas: false, desde: 0, hasta: 1e9, orden: [] };
     const api = {
       select(c) { if (q.op === 'select') q.campos = c || '*'; else q.devolver = c || '*'; return api; },
       insert(d) { q.op = 'insert'; q.datos = d; return api; },
@@ -40,7 +40,8 @@ function crearSupabaseFalso(estado) {
       delete() { q.op = 'delete'; return api; },
       eq(k, v) { q.filtros.push((r) => r[k] === v); return api; },
       in(k, vs) { q.filtros.push((r) => vs.indexOf(r[k]) >= 0); return api; },
-      order() { return api; },
+      order(k, o) { q.orden.push([k, !o || o.ascending !== false]); return api; },
+      limit(n) { q.hasta = q.desde + n - 1; return api; },
       range(a, b) { q.desde = a; q.hasta = b; return api; },
       single() { q.uno = true; return api; },
       maybeSingle() { q.quizas = true; return api; },
@@ -59,7 +60,9 @@ function crearSupabaseFalso(estado) {
       let filas;
       if (q.op === 'select') {
         if (tabla === 'admins') filas = lista.filter((r) => !sesion ? false : true);
-        filas = (filas || lista).filter((r) => q.filtros.every((f) => f(r))).slice(q.desde, q.hasta + 1).map((r) => adjuntar(tabla, r, q.campos));
+        filas = (filas || lista).filter((r) => q.filtros.every((f) => f(r)));
+        if (q.orden.length) filas = filas.slice().sort((a, b) => { for (const [k, asc] of q.orden) { if (a[k] < b[k]) return asc ? -1 : 1; if (a[k] > b[k]) return asc ? 1 : -1; } return 0; });
+        filas = filas.slice(q.desde, q.hasta + 1).map((r) => adjuntar(tabla, r, q.campos));
       } else if (q.op === 'insert') {
         const nuevas = (Array.isArray(q.datos) ? q.datos : [q.datos]).map((d) => Object.assign({ id: id(), slug: String(d.nombre || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'), demo: false }, d));
         nuevas.forEach((n) => lista.push(n));

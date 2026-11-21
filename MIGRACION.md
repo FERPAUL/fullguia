@@ -39,6 +39,7 @@ Todo lo necesario está en `supabase/migrations/` y `scripts/`.
    npx supabase link --project-ref <ref-nuevo>
    npx supabase db push --remote --password "<contraseña>"
    npx supabase functions deploy usuarios --use-api
+   npx supabase functions deploy youtube --use-api
    ```
 4. Auth (Dashboard → Authentication): desactivar *Allow new users to sign up*, contraseña mínima **10**, *Site URL* `https://fullguia.com/admin/`, *Redirect URLs* `https://fullguia.com/**`.
 5. Fotos: copiar del proyecto viejo al nuevo (las llaves secretas solo como variables de entorno, en la misma línea):
@@ -54,7 +55,7 @@ Todo lo necesario está en `supabase/migrations/` y `scripts/`.
    FG_DESTINO_DB="postgresql://postgres.<ref-nuevo>:<contraseña>@<host-nuevo>:5432/postgres" \
    NODE_PATH=qa/node_modules node scripts/copiar-datos.js
    ```
-   (Con `--sin-demo` no copia los negocios de ejemplo.) Hazlo **antes** del paso 5 o después, da igual: las fotos y los datos usan las mismas rutas.
+   (Con `--sin-demo` no copia los negocios ni los videos de ejemplo. La galería de videos se copia junto con lo demás.) Hazlo **antes** del paso 5 o después, da igual: las fotos y los datos usan las mismas rutas.
 7. Usuarios: `node scripts/crear-usuario.js videosait.2026@gmail.com admin` (muestra la contraseña una vez) y los editores que hagan falta desde el panel → Usuarios.
 8. `public/js/config.js`: cambiar `SUPABASE_URL` y `SUPABASE_KEY` por los nuevos. Hacer commit y push.
 9. Comprobar: `node qa/qa.js` → 0 fallos (crea primero los 3 usuarios de prueba del QA con `scripts/crear-usuario.js` y sus contraseñas en `.env`).

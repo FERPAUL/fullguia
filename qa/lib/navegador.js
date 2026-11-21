@@ -17,11 +17,11 @@ function rutaNavegador() {
   return r;
 }
 
-async function abrir() {
+async function abrir(extra) {
   return puppeteer.launch({
     executablePath: rutaNavegador(),
     headless: true,
-    args: ['--no-first-run', '--no-default-browser-check', '--disable-extensions'],
+    args: ['--no-first-run', '--no-default-browser-check', '--disable-extensions'].concat(extra || []),
   });
 }
 

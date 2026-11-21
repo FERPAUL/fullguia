@@ -1,11 +1,11 @@
-// Copia categorías, negocios y ofertas de un proyecto Supabase a otro (plan B de la migración).
+// Copia categorías, negocios, ofertas y la galería de videos de un proyecto Supabase a otro (plan B de la migración).
 // Conserva ids, slugs, fechas y rutas de fotos; no copia usuarios (se crean de nuevo en el destino).
 // Las conexiones se pasan SOLO por variables de entorno (cadena de conexión de Postgres, "Session pooler"):
 //   FG_ORIGEN_DB  = postgresql://postgres.<ref>:<contraseña>@aws-…pooler.supabase.com:5432/postgres
 //   FG_DESTINO_DB = postgresql://postgres.<ref-nuevo>:<contraseña>@aws-…pooler.supabase.com:5432/postgres
 // Uso: node scripts/copiar-datos.js            (el destino ya debe tener las migraciones aplicadas;
-//                                               su contenido de categorías/negocios/ofertas se REEMPLAZA)
-//      node scripts/copiar-datos.js --sin-demo (no copia los negocios marcados como demo)
+//                                               su contenido de categorías/negocios/ofertas/videos se REEMPLAZA)
+//      node scripts/copiar-datos.js --sin-demo (no copia los negocios ni los videos marcados como demo)
 const { Client } = require('pg');
 
 const TABLAS = [
@@ -14,6 +14,7 @@ const TABLAS = [
     'precio_label', 'amenidades', 'imagen', 'imagen_mini', 'logo', 'descripcion', 'rating', 'num_opiniones', 'plan', 'destacado_hasta', 'activo', 'demo',
     'created_at', 'updated_at']],
   ['ofertas', ['id', 'negocio_id', 'titulo', 'descuento', 'imagen', 'imagen_mini', 'vigente_hasta', 'activa', 'orden', 'demo', 'created_at', 'updated_at']],
+  ['videos', ['id', 'tipo', 'ref', 'titulo', 'miniatura', 'enlace', 'orden', 'activo', 'demo', 'created_at', 'updated_at']],
 ];
 
 async function main() {
@@ -26,12 +27,12 @@ async function main() {
     await d.query('begin');
     // El destino recién creado trae los datos iniciales de las migraciones: se reemplazan por los del origen.
     const previos = (await d.query('select (select count(*) from public.negocios)::int n')).rows[0].n;
-    await d.query('delete from public.ofertas; delete from public.negocios; delete from public.categorias;');
+    await d.query('delete from public.ofertas; delete from public.negocios; delete from public.categorias; delete from public.videos;');
     console.log('Destino vaciado (' + previos + ' negocios previos)');
     const copiados = new Set();
     for (const [tabla, cols] of TABLAS) {
       let filas = (await o.query('select ' + cols.join(', ') + ' from public.' + tabla)).rows;
-      if (sinDemo && tabla === 'negocios') filas = filas.filter((f) => !f.demo);
+      if (sinDemo && (tabla === 'negocios' || tabla === 'videos')) filas = filas.filter((f) => !f.demo);
       // Ofertas: solo las de negocios que sí se copiaron (si no, fallaría la llave foránea)
       if (tabla === 'ofertas') filas = filas.filter((f) => copiados.has(f.negocio_id) && !(sinDemo && f.demo));
       if (tabla === 'negocios') filas.forEach((f) => copiados.add(f.id));

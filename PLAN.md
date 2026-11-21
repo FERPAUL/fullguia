@@ -201,3 +201,19 @@ Reutilizo `jsdom`, `@babel/standalone` y `react` de `C:\Users\LENOVO\.claude\ski
 | R26 | Usuarios y roles: el admin crea, cambia de rol, cambia la contraseña y elimina usuarios desde el panel. El editor no ve ni puede usar la pantalla Usuarios (la función responde 403), no puede editar categorías y no puede cargar ni borrar demo. |
 | R27 | Datos demo: cargar agrega negocios demo sin duplicar; borrar elimina solo `demo = true` y sus archivos, sin tocar los negocios reales. |
 | R28 | WhatsApp solo con formato colombiano (+57 3XX XXX XXXX); el panel normaliza 10 dígitos a 57XXXXXXXXXX. |
+
+---
+
+## Fase 2 · Galería de videos de YouTube (acordada en la 2.ª reunión, 2026-11-18)
+- El recuadro de video del inicio pasa a ser una **galería deslizable** en el mismo lugar: swipe con el dedo encima del video (capa táctil sobre el iframe), flechas, puntos y teclado; sin cambiar de página.
+- Panel → **Galería de videos**: pegar enlaces sin límite; título y miniatura automáticos (oEmbed de YouTube; canales con la Edge Function `youtube`); ordenar ↑ ↓; ocultar; Administrador y Editor.
+- **Reproducción** (decisión del cliente: "todos en autoplay y el del frente con sonido"): arranca solo en silencio y el sonido se activa con el primer toque/clic/tecla del visitante (límite de los navegadores); un solo reproductor a la vez; al terminar pasa al siguiente.
+- **Enlaces**: cualquier enlace público o no listado (video, Short, /live/, youtu.be, lista, canal `/channel/UC…` o `@usuario` → transmisión en vivo actual del canal).
+- BD: migraciones 010 (tabla `videos`, RLS, `pagina_inicio()` con videos, KPI, seed) y 011 (videos demo + Cargar/Borrar demo). Edge Function `youtube` (justificada: la página de un canal no se puede leer desde el navegador por CORS; solo usuarios del panel; URL armada por la función, sin SSRF).
+
+| # | Requisito nuevo |
+|---|---|
+| R29 | Galería en la BD: `anon` solo lee videos activos; admin y editor escriben; `anon` y usuarios sin rol no; la base rechaza IDs, miniaturas y enlaces no válidos y duplicados; `pagina_inicio()` trae los videos en la misma llamada y en orden; cambiar un video sube la versión de datos; la función `youtube` exige sesión del panel y solo resuelve rutas de canal. |
+| R30 | Panel: acepta todos los formatos de enlace de YouTube y rechaza los demás; título y miniatura automáticos; avisa si el video es privado o no se puede insertar; alta, edición, orden y borrado optimistas con reversión; sin duplicados; el editor también lo usa. |
+| R31 | Sitio: una diapositiva por video, deslizable sobre el video en un celular real; arranca solo en silencio y suena con el primer toque (YouTube lo confirma); un solo reproductor a la vez; flechas, puntos, teclado y contador; 0, 1 y 30 videos; títulos como texto; sin desbordes; Lighthouse móvil ≥ 90. |
+

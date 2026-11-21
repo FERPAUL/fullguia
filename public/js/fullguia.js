@@ -382,22 +382,374 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Fachada de YouTube
+  // Galería de videos de YouTube (inicio)
   // ---------------------------------------------------------------------------
-  function activarVideo() {
-    $$('.fg-video').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var id = (b.getAttribute('data-video') || '').replace(/[^A-Za-z0-9_-]/g, '');
-        if (!id) return;
-        var f = document.createElement('iframe');
-        f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?controls=1&autoplay=1';
-        f.title = b.getAttribute('aria-label') || 'Video';
-        f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-        f.setAttribute('allowfullscreen', '');
-        b.parentNode.replaceChild(f, b);
-      });
-    });
+  // Se desliza con el dedo (o con flechas, puntos y teclado) sin salir de la página. Cada diapositiva es
+  // la miniatura del video y solo la del frente tiene el reproductor: al pasar a otra, el anterior se quita
+  // y su audio se corta. Arranca solo y en silencio (los navegadores no dejan sonar un video antes de que
+  // el visitante toque la página); con el primer toque, clic o tecla, el sonido se activa solo.
+  var YT_ORIGEN = 'https://www.youtube-nocookie.com';
+  var RX_YT = { video: /^[A-Za-z0-9_-]{11}$/, lista: /^[A-Za-z0-9_-]{10,64}$/, canal: /^UC[A-Za-z0-9_-]{22}$/ };
+  var RX_MINI_YT = /^https:\/\/(i[0-9]?\.ytimg\.com|yt3\.ggpht\.com|yt3\.googleusercontent\.com)\/[^\s"'<>\\]+$/;
+
+  function videoValido(v) { return !!(v && RX_YT[v.tipo] && RX_YT[v.tipo].test(String(v.ref || ''))); }
+  function urlEmbed(v, sonido) {
+    var o = window.location && /^https?:/.test(window.location.protocol) ? '&origin=' + encodeURIComponent(window.location.origin) : '';
+    var p = 'autoplay=1&playsinline=1&rel=0&enablejsapi=1&mute=' + (sonido ? 0 : 1) + o;
+    if (v.tipo === 'lista') return YT_ORIGEN + '/embed/videoseries?list=' + v.ref + '&' + p;
+    if (v.tipo === 'canal') return YT_ORIGEN + '/embed/live_stream?channel=' + v.ref + '&' + p;
+    return YT_ORIGEN + '/embed/' + v.ref + '?' + p;
   }
+  function miniaturaDe(v) {
+    if (v.miniatura && RX_MINI_YT.test(v.miniatura)) return v.miniatura;
+    return v.tipo === 'video' ? 'https://i.ytimg.com/vi/' + v.ref + '/hqdefault.jpg' : '';
+  }
+
+  var galeria = (function () {
+    var raiz, pista, btnAnt, btnSig, btnSonido, tituloEl, puntos, contador;
+    var lista = [], slides = [], firma = '', activo = 0;
+    var sonido = false;          // el visitante quiere sonido (primer gesto, botón o ▶)
+    var gesto = false;           // ya hubo un toque, clic o tecla del visitante
+    var recien = 0;              // momento del primer gesto (ese mismo toque no pausa el video)
+    var cargada = false, datos = false, arrancada = false, visible = true;
+    var automatico = true;       // sin autoplay si el visitante pidió ahorro de datos o menos movimiento
+    var jugador = null;          // { el, capa, slide, v, muted, estado, desde }
+    var tScroll = 0, tSync = 0;
+
+    function reducido() {
+      try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+    }
+
+    function init() {
+      raiz = $('#fg-galeria');
+      if (!raiz) return false;
+      pista = $('#fg-pista', raiz);
+      btnAnt = $('.fg-gal-ant', raiz);
+      btnSig = $('.fg-gal-sig', raiz);
+      btnSonido = $('#fg-sonido');
+      tituloEl = $('#fg-gal-titulo');
+      puntos = $('#fg-gal-puntos');
+      contador = $('#fg-gal-contador');
+      var ahorro = !!(navigator.connection && navigator.connection.saveData);
+      automatico = !ahorro && !reducido();
+      // La diapositiva escrita en la página (se ve antes de que lleguen los datos)
+      // (si alguien deja en la página una diapositiva con datos inválidos, se ignora sin romper la galería)
+      var escritas = $$('.fg-slide', pista).map(function (s) {
+        var img = $('img', s);
+        return { s: s, v: { tipo: s.getAttribute('data-tipo'), ref: s.getAttribute('data-ref'), titulo: (img && img.alt) || 'Video', miniatura: img ? img.getAttribute('src') : '' } };
+      }).filter(function (x) { return videoValido(x.v); });
+      slides = escritas.map(function (x) { return x.s; });
+      lista = escritas.map(function (x) { return x.v; });
+      firma = firmaDe(lista);
+      slides.forEach(function (s, i) { conectarSlide(s, i); });
+
+      pista.addEventListener('scroll', function () {
+        clearTimeout(tScroll);
+        tScroll = setTimeout(function () {
+          var w = pista.clientWidth || 1;
+          var i = Math.round(pista.scrollLeft / w);
+          if (i !== activo && i >= 0 && i < slides.length) activar(i);
+        }, 110);
+      }, { passive: true });
+      if (btnAnt) btnAnt.addEventListener('click', function () { ir(activo - 1); });
+      if (btnSig) btnSig.addEventListener('click', function () { ir(activo + 1); });
+      if (btnSonido) btnSonido.addEventListener('click', function () {
+        gesto = true;
+        sonido = jugador ? !!jugador.muted : !sonido;
+        aplicarSonido();
+      });
+      raiz.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); ir(activo - 1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); ir(activo + 1); }
+      });
+      escucharGesto();
+      window.addEventListener('message', alMensaje);
+      window.addEventListener('resize', function () { desplazar(activo, true); });
+      if (typeof IntersectionObserver !== 'undefined') {
+        new IntersectionObserver(function (ents) {
+          var ahora = ents[ents.length - 1].isIntersecting;
+          if (ahora === visible) return;
+          visible = ahora;
+          if (jugador) {
+            // Al salir se pausa; al volver solo sigue si estaba sonando (un video que el visitante pausó, sigue pausado)
+            if (!visible) { jugador.seguir = jugador.estado === 1 || jugador.estado === 3 || jugador.estado === -1; comando('pauseVideo'); }
+            else if (jugador.seguir) { jugador.seguir = false; comando('playVideo'); }
+            return;
+          }
+          // Si al arrancar la galería no estaba en pantalla, el video empieza cuando el visitante llega a ella
+          if (visible) { if (arrancada) { if (automatico) ponerJugador(false); } else arrancar(); }
+        }, { threshold: 0.35 }).observe(raiz);
+      }
+      if (document.readyState === 'complete') cargada = true;
+      else window.addEventListener('load', function () { cargada = true; arrancar(); });
+      controles();
+      return true;
+    }
+
+    function firmaDe(l) {
+      return l.map(function (v) { return v.tipo + ':' + v.ref + ':' + v.titulo + ':' + (v.miniatura || ''); }).join('|');
+    }
+
+    // Primer toque/clic/tecla del visitante en la página: activa el sonido del video del frente.
+    function primerGesto(e) {
+      if (gesto) return;
+      if (e && e.type === 'keydown' && /^(Tab|Shift|Control|Alt|Meta|Escape)$/.test(e.key || '')) return;
+      // Escribir en el buscador o tocar un enlace (que lleva a otra página) no enciende el sonido
+      var t = e && e.target;
+      if (t && t.closest && t.closest('input, textarea, select, [contenteditable], a[href]') && !(raiz && raiz.contains(t))) return;
+      gesto = true;
+      ['pointerdown', 'keydown', 'touchend'].forEach(function (ev) { document.removeEventListener(ev, primerGesto, true); });
+      if (btnSonido && e && e.target && btnSonido.contains(e.target)) return;   // el botón decide por sí mismo
+      recien = Date.now();
+      if (!sonido) { sonido = true; aplicarSonido(); }
+    }
+
+    function conectarSlide(s, i) {
+      var b = $('.fg-video', s);
+      if (b) b.addEventListener('click', function () {
+        gesto = true;
+        sonido = true;
+        if (i !== activo) ir(i);
+        ponerJugador(true);
+      });
+    }
+
+    function crearSlide(v, i, n) {
+      var s = clonar('tpl-video');
+      if (!s) return null;
+      s.setAttribute('data-tipo', v.tipo);
+      s.setAttribute('data-ref', v.ref);
+      s.setAttribute('aria-label', (i + 1) + ' de ' + n + ': ' + v.titulo);
+      if (v.tipo === 'canal') s.classList.add('fg-slide-canal');
+      var b = $('.fg-video', s);
+      if (b) b.setAttribute('aria-label', 'Reproducir: ' + v.titulo);
+      texto(s, 'titulo', v.titulo);
+      var vivo = campos(s, 'vivo')[0];
+      if (vivo) vivo.hidden = v.tipo !== 'canal';
+      var img = $('img', s);
+      var src = miniaturaDe(v);
+      if (img && src) {
+        img.src = src;
+        img.alt = v.titulo;
+        if (i === 0) { img.removeAttribute('loading'); img.setAttribute('fetchpriority', 'high'); }
+      } else if (img) {
+        img.parentNode.removeChild(img);
+      }
+      return s;
+    }
+
+    function pintar(nueva) {
+      if (!raiz || !Array.isArray(nueva)) return;
+      var l = nueva.filter(videoValido).map(function (v) {
+        return { tipo: v.tipo, ref: String(v.ref), titulo: String(v.titulo || 'Video').slice(0, 120), miniatura: v.miniatura || '' };
+      });
+      var f = firmaDe(l);
+      if (f === firma) return;                    // nada cambió: el video que suena sigue sonando
+      var clave = lista[activo] ? lista[activo].tipo + ':' + lista[activo].ref : '';
+      var habia = !!jugador;                      // un video que ya estaba sonando (aunque lo haya pedido el visitante)
+      quitarJugador();
+      lista = l;
+      firma = f;
+      if (!l.length) {
+        var m = document.createElement('div');
+        m.className = 'fg-gal-vacio';
+        m.textContent = 'Pronto verás videos aquí';
+        slides = [];
+        pista.replaceChildren(m);
+        activo = 0;
+        controles();
+        return;
+      }
+      var frag = document.createDocumentFragment();
+      slides = l.map(function (v, i) { var s = crearSlide(v, i, l.length); conectarSlide(s, i); frag.appendChild(s); return s; });
+      pista.replaceChildren(frag);
+      var j = 0;
+      var sigue = false;
+      l.forEach(function (v, i) { if (v.tipo + ':' + v.ref === clave) { j = i; sigue = true; } });
+      activo = j;
+      desplazar(activo, true);
+      controles();
+      // Si el video que sonaba sigue en la lista, vuelve a ponerse aunque la galería no haya arrancado sola
+      if ((habia && sigue) || (arrancada && visible && automatico)) ponerJugador(false);
+    }
+
+    function desplazar(i, sinAnimar) {
+      if (!pista) return;
+      var x = i * (pista.clientWidth || 0);
+      if (typeof pista.scrollTo === 'function') {
+        try { pista.scrollTo({ left: x, behavior: sinAnimar || reducido() ? 'auto' : 'smooth' }); return; } catch (e) { /* navegador viejo */ }
+      }
+      pista.scrollLeft = x;
+    }
+
+    function ir(i) {
+      if (!slides.length) return;
+      var j = Math.max(0, Math.min(slides.length - 1, i));
+      if (j === activo) return;
+      activar(j);
+      desplazar(j);
+    }
+
+    function activar(i) {
+      if (i === activo && jugador) return;
+      quitarJugador();
+      activo = i;
+      controles();
+      if (arrancada && visible && automatico) ponerJugador(false);
+    }
+
+    function controles() {
+      var n = slides.length;
+      var v = lista[activo];
+      if (btnAnt) { btnAnt.hidden = n < 2; btnAnt.disabled = activo <= 0; }
+      if (btnSig) { btnSig.hidden = n < 2; btnSig.disabled = activo >= n - 1; }
+      if (tituloEl) tituloEl.textContent = v ? v.titulo : '';
+      if (contador) { contador.textContent = n > 1 ? (activo + 1) + ' / ' + n : ''; }
+      if (puntos) {
+        var fr = document.createDocumentFragment();
+        if (n > 1 && n <= 15) {
+          for (var k = 0; k < n; k++) {
+            var d = document.createElement('button');
+            d.type = 'button';
+            d.className = 'dot' + (k === activo ? ' active' : '');
+            d.setAttribute('aria-label', 'Ver video ' + (k + 1) + ': ' + lista[k].titulo);
+            if (k === activo) d.setAttribute('aria-current', 'true');
+            (function (k2) { d.addEventListener('click', function () { ir(k2); }); })(k);
+            fr.appendChild(d);
+          }
+        }
+        puntos.replaceChildren(fr);
+      }
+      // Las diapositivas de atrás no se enfocan ni se leen (inert); se llega a ellas con flechas, puntos o deslizando
+      slides.forEach(function (s, k) { if (k === activo) s.removeAttribute('inert'); else s.setAttribute('inert', ''); });
+      botonSonido();
+    }
+
+    function botonSonido() {
+      if (!btnSonido) return;
+      btnSonido.hidden = !jugador;
+      var mudo = jugador ? !!jugador.muted : !sonido;
+      btnSonido.textContent = mudo ? '🔇 Activar sonido' : '🔊 Silenciar';
+      btnSonido.setAttribute('aria-pressed', mudo ? 'false' : 'true');
+    }
+
+    function arrancar() {
+      if (arrancada || !cargada || !datos || !raiz) return;
+      arrancada = true;
+      var ya = function () { if (visible && automatico && !jugador) ponerJugador(false); };
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(ya, { timeout: 1500 });
+      else setTimeout(ya, 200);
+    }
+
+    function ponerJugador(pedido) {
+      var s = slides[activo], v = lista[activo];
+      if (!s || !v) return;
+      if (jugador && jugador.slide === s) { if (pedido) { comando('playVideo'); aplicarSonido(); } return; }
+      quitarJugador();
+      var f = document.createElement('iframe');
+      // Siempre arranca en silencio (así el navegador nunca bloquea el autoplay); el sonido se pide al estar listo.
+      f.src = urlEmbed(v, false);
+      f.title = v.titulo;
+      f.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen');
+      f.setAttribute('allowfullscreen', '');
+      f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      // Capa táctil: deja deslizar encima del video (un iframe se queda con los toques); un toque pausa o reanuda.
+      // La franja de abajo queda libre para los controles de YouTube.
+      var capa = document.createElement('div');
+      capa.className = 'fg-capa';
+      capa.addEventListener('click', function () {
+        if (Date.now() - recien < 600) return;     // ese toque solo activó el sonido
+        if (!jugador) return;
+        comando(jugador.estado === 1 || jugador.estado === 3 ? 'pauseVideo' : 'playVideo');
+      });
+      jugador = { el: f, capa: capa, slide: s, v: v, muted: true, estado: -1, desde: Date.now() };
+      f.addEventListener('load', function () {
+        if (!jugador || jugador.el !== f) return;
+        try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'fg', channel: 'widget' }), YT_ORIGEN); } catch (e) { /* nada */ }
+        // Por si el reproductor no avisa que está listo: se aplica el sonido igual un momento después
+        setTimeout(function () { if (jugador && jugador.el === f && !jugador.listo) aplicarSonido(); }, 1500);
+      });
+      s.classList.add('fg-reproduciendo');
+      s.appendChild(f);
+      s.appendChild(capa);
+      botonSonido();
+    }
+
+    function quitarJugador() {
+      if (!jugador) return;
+      var j = jugador;
+      jugador = null;
+      j.slide.classList.remove('fg-reproduciendo');
+      if (j.el.parentNode) j.el.parentNode.removeChild(j.el);
+      if (j.capa.parentNode) j.capa.parentNode.removeChild(j.capa);
+      botonSonido();
+    }
+
+    function comando(func, args) {
+      if (!jugador || !jugador.el.contentWindow) return;
+      try { jugador.el.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), YT_ORIGEN); } catch (e) { /* nada */ }
+    }
+
+    function aplicarSonido() {
+      if (jugador) {
+        comando(sonido ? 'unMute' : 'mute');
+        if (sonido) comando('playVideo');
+        jugador.muted = !sonido;
+        jugador.desde = Date.now();
+        clearTimeout(tSync);
+        tSync = setTimeout(sincronizar, 1600);      // después se compara con lo que YouTube dice de verdad
+      }
+      botonSonido();
+    }
+
+    function escucharGesto() {
+      ['pointerdown', 'keydown', 'touchend'].forEach(function (ev) { document.addEventListener(ev, primerGesto, true); });
+    }
+
+    // Lo que YouTube informa manda: si el navegador no dejó activar el sonido (p. ej. un deslizamiento no cuenta
+    // como toque), el botón vuelve a "Activar sonido" y se espera el próximo toque; si el visitante usó el botón
+    // de YouTube, se respeta su elección.
+    function sincronizar() {
+      if (!jugador || typeof jugador.reportado !== 'boolean' || jugador.reportado === jugador.muted) return;
+      var bloqueado = jugador.reportado && sonido && Date.now() - jugador.desde < 5000;
+      jugador.muted = jugador.reportado;
+      sonido = !jugador.reportado;
+      if (bloqueado && gesto) { gesto = false; escucharGesto(); }
+      botonSonido();
+    }
+
+    // Mensajes del reproductor (estado, si está en silencio). Solo se aceptan del iframe activo.
+    function alMensaje(e) {
+      if (!jugador || e.source !== jugador.el.contentWindow) return;
+      if (e.origin !== YT_ORIGEN && e.origin !== 'https://www.youtube.com') return;
+      var d;
+      try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+      if (!d || typeof d !== 'object') return;
+      if (d.event === 'onReady') { jugador.listo = true; aplicarSonido(); return; }
+      var info = d.info;
+      if (d.event === 'onStateChange' && typeof info === 'number') info = { playerState: info };
+      if (!info || typeof info !== 'object') return;
+      if (typeof info.playerState === 'number') {
+        jugador.estado = info.playerState;
+        // Al terminar un video pasa solo al siguiente (y del último vuelve al primero)
+        if (info.playerState === 0 && jugador.v.tipo === 'video' && slides.length > 1) { var sig = (activo + 1) % slides.length; activar(sig); desplazar(sig); return; }
+      }
+      if (typeof info.muted === 'boolean') {
+        jugador.reportado = info.muted;
+        if (Date.now() - jugador.desde > 1500) sincronizar();   // antes de eso puede ser el estado anterior al comando
+      }
+    }
+
+    return {
+      init: init,
+      pintar: pintar,
+      datosListos: function () { datos = true; arrancar(); },
+      ir: ir,
+      estado: function () {
+        return { activo: activo, total: slides.length, sonido: sonido, gesto: gesto, jugador: jugador ? jugador.el.src : '', muted: jugador ? jugador.muted : null };
+      }
+    };
+  })();
 
   // ---------------------------------------------------------------------------
   // Tarjetas de negocio
@@ -576,15 +928,17 @@
       });
     }
 
+    galeria.init();
     return vista('pagina_inicio', {}, function (d) {
       pintarCategorias($('#fg-categorias'), d.categorias, 8);
       pintarSelect(d.categorias || []);
       pintarDestacados(d.destacados || [], 0);
       pintarOfertas(d.ofertas || []);
+      galeria.pintar(d.videos);
     }, function () {
       mensaje(grid, ERROR_RED[0], ERROR_RED[1], function () { location.reload(); });
       if (ofertas) ofertas.replaceChildren();
-    });
+    }).then(function (d) { galeria.datosListos(); return d; });
   }
 
   function paginaCategorias() {
@@ -768,7 +1122,6 @@
     activarFavoritos();
     activarPublicar();
     activarPerfil();
-    activarVideo();
     var pg = document.body && document.body.getAttribute('data-fg-pagina');
     var f = PAGINAS[pg];
     return f ? f() : Promise.resolve(null);
@@ -785,6 +1138,6 @@
   window.FG = {
     listo: listo, rpc: rpc, vista: vista, cache: cache, claveDe: claveDe, urlImagen: urlImagen,
     numeroWhatsapp: numeroWhatsapp, precio: precio, estrellas: estrellas, normalizar: normalizar,
-    ICONOS: ICONOS, LIMITE: LIMITE
+    ICONOS: ICONOS, LIMITE: LIMITE, galeria: galeria
   };
 })();

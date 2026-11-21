@@ -311,6 +311,88 @@ async function fnUsuarios(accion, datos) {
   return data;
 }
 
+// ---------- Galería de videos de YouTube ----------
+const RX_VIDEO = /^[A-Za-z0-9_-]{11}$/, RX_LISTA = /^[A-Za-z0-9_-]{10,64}$/, RX_CANAL = /^UC[A-Za-z0-9_-]{22}$/;
+// Los @usuario de YouTube admiten tildes, ñ y otras letras (en los enlaces vienen codificados: %C3%BA…)
+const RX_HANDLE = /^@[\p{L}\p{M}\p{N}._-]{3,30}$/u, RX_NOMBRE_CANAL = /^[\p{L}\p{M}\p{N}._-]{1,100}$/u;
+const decodificarUrl = (x) => { try { return decodeURIComponent(x || ''); } catch (e) { return x || ''; } };
+const RX_MINI_YT = /^https:\/\/(i[0-9]?\.ytimg\.com|yt3\.ggpht\.com|yt3\.googleusercontent\.com)\/[^\s"'<>\\]+$/;
+const TIPOS_VIDEO = { video: 'Video', lista: 'Lista', canal: 'Canal en vivo' };
+const NO_RECONOCIDO = 'No reconocemos ese enlace de YouTube. En YouTube toca Compartir → Copiar enlace y pégalo aquí.';
+
+// Cualquier enlace público o no listado de YouTube → { tipo, ref } (o { tipo: 'canal', ruta } si falta resolver
+// el @usuario) o { error }. Acepta watch, youtu.be, shorts, live, embed, m., music., nocookie, listas y canales.
+function leerEnlaceYoutube(texto) {
+  const s = String(texto == null ? '' : texto).trim();
+  if (!s) return { error: 'Pega el enlace del video de YouTube.' };
+  if (s.length > 500) return { error: 'El enlace es demasiado largo.' };
+  if (RX_VIDEO.test(s)) return { tipo: 'video', ref: s };
+  if (RX_CANAL.test(s)) return { tipo: 'canal', ref: s, ruta: 'channel/' + s };
+  if (RX_HANDLE.test(s)) return { tipo: 'canal', ruta: s };
+  let u;
+  try { u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : 'https://' + s.replace(/^\/+/, '')); } catch (e) { return { error: NO_RECONOCIDO }; }
+  if (!/^https?:$/.test(u.protocol)) return { error: NO_RECONOCIDO };
+  const host = u.hostname.toLowerCase().replace(/^(www|m|music|gaming)\./, '');
+  const p = u.pathname.split('/').filter(Boolean).map(decodificarUrl);
+  const v = (x) => (RX_VIDEO.test(x || '') ? x : '');
+  const lista = RX_LISTA.test(u.searchParams.get('list') || '') ? u.searchParams.get('list') : '';
+  if (host === 'youtu.be') {
+    if (v(p[0])) return { tipo: 'video', ref: p[0] };
+    return { error: NO_RECONOCIDO };
+  }
+  if (host !== 'youtube.com' && host !== 'youtube-nocookie.com') return { error: 'Ese enlace no es de YouTube.' };
+  const a = p[0] || '';
+  if (a === 'watch' || a === '') {
+    if (v(u.searchParams.get('v'))) return { tipo: 'video', ref: u.searchParams.get('v') };
+    if (lista) return { tipo: 'lista', ref: lista };
+  }
+  if (a === 'embed' && p[1] === 'videoseries' && lista) return { tipo: 'lista', ref: lista };
+  if (a === 'embed' && p[1] === 'live_stream' && RX_CANAL.test(u.searchParams.get('channel') || '')) {
+    const c = u.searchParams.get('channel'); return { tipo: 'canal', ref: c, ruta: 'channel/' + c };
+  }
+  if (['shorts', 'live', 'embed', 'v', 'e'].indexOf(a) >= 0 && v(p[1])) return { tipo: 'video', ref: p[1] };
+  if (a === 'playlist' && lista) return { tipo: 'lista', ref: lista };
+  if (a === 'channel' && RX_CANAL.test(p[1] || '')) return { tipo: 'canal', ref: p[1], ruta: 'channel/' + p[1] };
+  if (RX_HANDLE.test(a)) return { tipo: 'canal', ruta: a };
+  if ((a === 'c' || a === 'user') && RX_NOMBRE_CANAL.test(p[1] || '')) return { tipo: 'canal', ruta: a + '/' + p[1] };
+  if (a === 'clip') return { error: 'Los clips no se pueden insertar. Pega el enlace del video completo.' };
+  return { error: NO_RECONOCIDO };
+}
+const miniaturaVideo = (id) => 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg';
+const enlaceVideo = (tipo, ref) => (tipo === 'lista' ? 'https://www.youtube.com/playlist?list=' + ref
+  : tipo === 'canal' ? 'https://www.youtube.com/channel/' + ref + '/live' : 'https://www.youtube.com/watch?v=' + ref);
+
+// Título y miniatura: videos y listas con el oEmbed público de YouTube (responde con CORS);
+// canales con la Edge Function "youtube" (la página del canal no se puede leer desde el navegador).
+async function infoYoutube(texto) {
+  const e = leerEnlaceYoutube(texto);
+  if (e.error) throw new Error(e.error);
+  if (e.tipo === 'canal') {
+    const { data, error } = await sb.functions.invoke('youtube', { body: { ruta: e.ruta || 'channel/' + e.ref } });
+    if (error) {
+      let msg = error.message;
+      try { const j = await error.context.json(); msg = j.error || msg; } catch (x) { /* sin cuerpo */ }
+      if (e.ref) return { tipo: 'canal', ref: e.ref, titulo: '', miniatura: null, aviso: msg };
+      throw new Error(/Failed to fetch|NetworkError|Load failed/i.test(msg) ? SIN_RED : msg);
+    }
+    if (!data || !RX_CANAL.test(data.canal || '')) throw new Error('No se pudo leer el canal. Pega el enlace de la transmisión o del video.');
+    return { tipo: 'canal', ref: data.canal, titulo: String(data.titulo || '').slice(0, 120), miniatura: RX_MINI_YT.test(data.miniatura || '') ? data.miniatura : null };
+  }
+  const base = e.tipo === 'lista' ? 'https://www.youtube.com/playlist?list=' + e.ref : 'https://www.youtube.com/watch?v=' + e.ref;
+  const fija = e.tipo === 'video' ? miniaturaVideo(e.ref) : null;
+  let r;
+  try { r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(base)); }
+  catch (x) { return { tipo: e.tipo, ref: e.ref, titulo: '', miniatura: fija, aviso: 'No se pudo leer el título: escríbelo a mano.' }; }
+  if (r.status === 401 || r.status === 403) throw new Error('YouTube no deja mostrar ' + (e.tipo === 'lista' ? 'esta lista' : 'este video') + ' fuera de YouTube: es privado o su dueño desactivó la inserción. Debe ser Público o No listado.');
+  if (r.status === 404 || r.status === 400) throw new Error((e.tipo === 'lista' ? 'Esa lista' : 'Ese video') + ' no existe en YouTube o fue borrado. Revisa el enlace.');
+  if (!r.ok) return { tipo: e.tipo, ref: e.ref, titulo: '', miniatura: fija, aviso: 'No se pudo leer el título: escríbelo a mano.' };
+  let j = {};
+  try { j = await r.json(); } catch (x) { j = {}; }
+  const mini = e.tipo === 'video' ? fija : (RX_MINI_YT.test(j.thumbnail_url || '') ? j.thumbnail_url : null);
+  return { tipo: e.tipo, ref: e.ref, titulo: String(j.title || '').trim().slice(0, 120), miniatura: mini };
+}
+window.fgVideos = { leerEnlaceYoutube, infoYoutube };   // para las pruebas automáticas
+
 async function borrarRutas(rutas) {
   const lista = Array.from(new Set((rutas || []).filter(esRuta)));
   if (!lista.length) return 0;
@@ -326,12 +408,13 @@ const PAGINAS_FG = [
   { key: 'negocios', label: 'Negocios', icon: 'fa-store', group: 'Directorio' },
   { key: 'ofertas', label: 'Ofertas', icon: 'fa-percent', group: 'Directorio' },
   { key: 'categorias', label: 'Categorías', icon: 'fa-tags', group: 'Directorio' },
+  { key: 'videos', label: 'Galería de videos', icon: 'fa-film', group: 'Directorio' },
   { key: 'importar', label: 'Importar CSV', icon: 'fa-file-csv', group: 'Herramientas' },
   { key: 'usuarios', label: 'Usuarios', icon: 'fa-users', group: 'Administración', solo: 'admin' },
   { key: 'configuracion', label: 'Configuración', icon: 'fa-gear', group: 'Administración', solo: 'admin' }
 ];
-// El editor ve y edita negocios y ofertas; categorías solo las ve. La base de datos lo hace cumplir (RLS).
-const PERMISOS_EDITOR = { inicio: 'v', negocios: 'vaed', ofertas: 'vaed', categorias: 'v', importar: 'va' };
+// El editor ve y edita negocios, ofertas y la galería de videos; categorías solo las ve. La base de datos lo hace cumplir (RLS).
+const PERMISOS_EDITOR = { inicio: 'v', negocios: 'vaed', ofertas: 'vaed', categorias: 'v', videos: 'vaed', importar: 'va' };
 
 async function armarBoot() {
   const { data: s } = await sb.auth.getSession();
@@ -414,7 +497,7 @@ function limpiarNegocio(d) {
 const esTemporal = (id) => !id || String(id).indexOf('_tmp_') === 0;
 
 // ---------- Lecturas (useRead) ----------
-const VERSIONADAS = new Set(['getInicio', 'listNegocios', 'listCategorias', 'listOfertas']);
+const VERSIONADAS = new Set(['getInicio', 'listNegocios', 'listCategorias', 'listOfertas', 'listVideos']);
 const LECTURAS = {
   getInicio: async () => {
     const { data, error } = await sb.rpc('panel_resumen');
@@ -428,7 +511,8 @@ const LECTURAS = {
         { label: 'Destacados por vencer (7 días)', value: d.por_vencer || 0, icon: 'fa-hourglass-half', tono: d.por_vencer ? 'warn' : 'mute' },
         { label: 'Destacados vencidos', value: d.vencidos || 0, icon: 'fa-calendar-xmark', tono: d.vencidos ? 'bad' : 'mute' },
         { label: 'Ofertas vigentes', value: d.ofertas || 0, icon: 'fa-percent', tono: 'info' },
-        { label: 'Categorías activas', value: d.categorias || 0, icon: 'fa-tags', tono: 'info' }
+        { label: 'Categorías activas', value: d.categorias || 0, icon: 'fa-tags', tono: 'info' },
+        { label: 'Videos en la galería', value: d.videos || 0, icon: 'fa-film', tono: d.videos ? 'info' : 'mute' }
       ]
     });
   },
@@ -443,6 +527,10 @@ const LECTURAS = {
         negocio: (o.negocios || {}).nombre || '', negocios: undefined, activa: o.activa ? 1 : 0, demo: o.demo ? 1 : 0,
         vigente: o.activa && (!o.vigente_hasta || o.vigente_hasta >= hoyCO()) ? 'Vigente' : (o.activa ? 'Vencida' : 'Pausada')
       }))
+  }),
+  listVideos: async () => okR({
+    rows: (await todas('videos', 'id,tipo,ref,titulo,miniatura,enlace,orden,activo,demo,created_at,updated_at', [['orden'], ['created_at']]))
+      .map((v) => Object.assign({}, v, { activo: v.activo ? 1 : 0, demo: v.demo ? 1 : 0 }))
   }),
   listUsuarios: async () => {
     const r = await fnUsuarios('listar');
@@ -564,6 +652,55 @@ const ESCRITURAS = {
     if (error) throw error;
     if (!data || !data.length) return { success: false, message: 'No se encontró la oferta o no tienes permiso.' };
     if (o) await borrarRutas([o.imagen, o.imagen_mini]);
+    return okR();
+  },
+
+  // Galería de videos. d = { id?, enlace, tipo, ref, titulo, miniatura, activo } (tipo/ref ya resueltos en el formulario)
+  saveVideo: async (d) => {
+    const tipo = String(d.tipo || ''), ref = String(d.ref || '').trim(), titulo = String(d.titulo || '').trim();
+    const okRef = (tipo === 'video' && RX_VIDEO.test(ref)) || (tipo === 'lista' && RX_LISTA.test(ref)) || (tipo === 'canal' && RX_CANAL.test(ref));
+    if (!okRef) return { success: false, message: 'El enlace de YouTube no es válido. Vuelve a pegarlo.' };
+    const e = leerEnlaceYoutube(d.enlace);
+    if (e.error || e.tipo !== tipo || (e.ref && e.ref !== ref)) return { success: false, message: 'El enlace cambió y no coincide con el video. Vuelve a pegarlo.' };
+    if (titulo.length < 1) return { success: false, message: 'Escribe el título del video.' };
+    const x = {
+      tipo, ref, titulo: titulo.slice(0, 120),
+      miniatura: RX_MINI_YT.test(String(d.miniatura || '')) && String(d.miniatura).length <= 500 ? d.miniatura : null,
+      enlace: /^https:\/\/[^\s"'<>\\]+$/.test(String(d.enlace || '').trim()) && String(d.enlace).trim().length <= 500 ? String(d.enlace).trim() : enlaceVideo(tipo, ref),
+      activo: !!Number(d.activo)
+    };
+    const q = async () => {
+      if (!esTemporal(d.id)) return sb.from('videos').update(x).eq('id', d.id).select('*').single();
+      const { data: ult } = await sb.from('videos').select('orden').order('orden', { ascending: false }).limit(1);
+      x.orden = ((ult && ult[0] && Number(ult[0].orden)) || 0) + 10;                // los nuevos van al final
+      return sb.from('videos').insert(x).select('*').single();
+    };
+    const { data, error } = await q();
+    if (error && error.code === '23505') return { success: false, message: 'Ese video ya está en la galería.' };
+    if (error && error.code === '23514') return { success: false, message: 'Algún dato del video no es válido. Vuelve a pegar el enlace.' };
+    if (error) throw error;
+    return okR({ row: data });
+  },
+  deleteVideo: async (id) => {
+    const { data, error } = await sb.from('videos').delete().eq('id', id).select('id');
+    if (error) throw error;
+    if (!data || !data.length) return { success: false, message: 'No se encontró el video o no tienes permiso.' };
+    return okR();
+  },
+  // Sube (-1) o baja (+1) un video en la galería. Si hay órdenes repetidos, se renumeran de 10 en 10.
+  moverVideo: async (id, dir) => {
+    const lista = await todas('videos', 'id,orden,created_at', [['orden'], ['created_at']]);
+    const i = lista.findIndex((v) => v.id === id), j = i + (Number(dir) < 0 ? -1 : 1);
+    if (i < 0) return { success: false, message: 'No se encontró el video.' };
+    if (j < 0 || j >= lista.length) return okR();
+    const nuevo = lista.map((v) => v.id);
+    nuevo[i] = lista[j].id; nuevo[j] = lista[i].id;
+    const cambios = nuevo.map((vid, k) => ({ id: vid, orden: (k + 1) * 10 })).filter((c) => (lista.find((v) => v.id === c.id) || {}).orden !== c.orden);
+    for (const c of cambios) {
+      const { data, error } = await sb.from('videos').update({ orden: c.orden }).eq('id', c.id).select('id');
+      if (error) throw error;
+      if (!data || !data.length) return { success: false, message: 'No tienes permiso para ordenar la galería.' };
+    }
     return okR();
   },
 
@@ -1689,6 +1826,7 @@ function Inicio() {
         <Btn icon="fa-globe" onClick={() => window.open(sitio('index.html'), '_blank', 'noopener')}>Ver sitio público</Btn>
         {can('importar', 'a') ? <Btn icon="fa-file-csv" onClick={() => ir('importar')}>Importar negocios desde CSV</Btn> : null}
         <Btn icon="fa-percent" onClick={() => ir('ofertas')}>Ofertas</Btn>
+        <Btn icon="fa-film" onClick={() => ir('videos')}>Galería de videos</Btn>
       </div></div>
     </div>
   );
@@ -1949,6 +2087,131 @@ function Ofertas() {
   );
 }
 
+// ---------- Galería de videos ----------
+function VideoModal({ row, borrador, onClose, onFallo }) {
+  // Una fila sin enlace guardado (cargada por SQL o copiada) se edita con el enlace armado desde tipo + ref
+  const inicial = () => borrador || (row ? Object.assign({}, row, { enlace: row.enlace || enlaceVideo(row.tipo, row.ref) }) : { enlace: '', tipo: '', ref: '', titulo: '', miniatura: '', activo: 1 });
+  const [d, setD] = useState(inicial);
+  const [est, setEst] = useState(() => ({ cargando: false, error: '', aviso: '', leido: (borrador || row) ? String(inicial().enlace || '') : '' }));
+  const tituloAuto = useRef(!row && !borrador);       // el título se llena solo hasta que la persona lo cambie
+  const vuelo = useRef(null), dRef = useRef(d);
+  dRef.current = d;
+  const set = (k) => (v) => setD((x) => Object.assign({}, x, { [k]: v }));
+  // Lee el enlace (una sola consulta por texto, aunque se pida varias veces a la vez)
+  const consultar = (texto) => {
+    const t = String(texto || '').trim();
+    if (!t) return Promise.resolve(null);
+    if (t === est.leido && dRef.current.ref && !est.error) return Promise.resolve(dRef.current);
+    if (vuelo.current && vuelo.current.t === t) return vuelo.current.p;
+    setEst({ cargando: true, error: '', aviso: '', leido: '' });
+    const p = infoYoutube(t).then((info) => {
+      const x = dRef.current;
+      const nuevo = Object.assign({}, x, { enlace: t, tipo: info.tipo, ref: info.ref, miniatura: info.miniatura || '',
+        titulo: info.titulo && (tituloAuto.current || !String(x.titulo || '').trim()) ? info.titulo : x.titulo });
+      if (String(dRef.current.enlace || '').trim() === t) { setD(nuevo); setEst({ cargando: false, error: '', aviso: info.aviso || '', leido: t }); }
+      return nuevo;
+    }, (e) => {
+      if (String(dRef.current.enlace || '').trim() === t) {
+        setD((x) => Object.assign({}, x, { tipo: '', ref: '', miniatura: '' }));
+        setEst({ cargando: false, error: (e && e.message) || 'No se pudo leer el enlace', aviso: '', leido: t });
+      }
+      return null;
+    }).finally(() => { if (vuelo.current && vuelo.current.t === t) vuelo.current = null; });
+    vuelo.current = { t, p };
+    return p;
+  };
+  // Al pegar o escribir el enlace se consulta solo (medio segundo después de la última tecla)
+  useEffect(() => {
+    const t = String(d.enlace || '').trim();
+    if (!t || (t === est.leido && !est.error)) return undefined;     // tras un error, el mismo enlace se vuelve a consultar
+    const h = setTimeout(() => { consultar(t); }, 500);
+    return () => clearTimeout(h);
+  }, [d.enlace]);
+  const save = async () => {
+    const t = String(d.enlace || '').trim();
+    if (!t) return toast('Pega el enlace de YouTube', 'warn');
+    const r = await consultar(t);
+    if (!r || !r.ref) return toast('Revisa el enlace de YouTube', 'warn');
+    const fin = Object.assign({}, r, { titulo: String(dRef.current.titulo || r.titulo || '').trim(), activo: dRef.current.activo });
+    if (!fin.titulo) return toast('Escribe el título del video', 'warn');
+    if (enCache('listVideos', []).some((v) => v.id !== (row && row.id) && v.tipo === fin.tipo && v.ref === fin.ref)) return toast('Ese video ya está en la galería', 'warn');
+    const vista = Object.assign({}, fin, { activo: Number(fin.activo) ? 1 : 0 });
+    onClose();
+    optimista('saveVideo', [fin], {
+      lecturas: [['listVideos', []]], ok: row ? 'Video actualizado' : 'Video agregado a la galería',
+      aplicar: row ? opt.cambio(row.id, vista) : opt.alta(Object.assign({ orden: 1e9 }, vista), true),
+      alFallar: () => onFallo({ row, borrador: fin })
+    });
+  };
+  const listo = !!d.ref && !est.cargando && !est.error;
+  return (
+    <FormModal titulo={row ? 'Editar video' : 'Agregar video'} icon="fa-film" onClose={onClose} onGuardar={save}>
+      <Field label="Enlace de YouTube" req wide hint="Video público o no listado, Short, transmisión en vivo, lista o canal. En YouTube: Compartir → Copiar enlace.">
+        <Inp value={d.enlace} onChange={set('enlace')} maxLength={500} placeholder="https://www.youtube.com/watch?v=…" icon="fa-link" autoFocus={!row} inputMode="url" /></Field>
+      <div className="field wide" aria-live="polite">
+        {est.cargando ? <p className="muted"><Ic n="fa-spinner fa-spin" /> Leyendo el enlace…</p> : null}
+        {est.error ? <p className="fg-video-err"><Ic n="fa-triangle-exclamation" /> {est.error}</p> : null}
+        {listo ? (
+          <div className="fg-video-prev">
+            {d.miniatura ? <img src={d.miniatura} alt="" width="160" height="90" /> : <span className="fg-video-ph"><Ic n={d.tipo === 'canal' ? 'fa-tower-broadcast' : 'fa-film'} /></span>}
+            <div><Pill tone={d.tipo === 'canal' ? 'warn' : 'info'}>{TIPOS_VIDEO[d.tipo] || 'Video'}</Pill>
+              <p className="muted" style={{ marginTop: 6 }}>{d.tipo === 'canal' ? 'Muestra la transmisión en vivo actual del canal. Si el canal no está en vivo, YouTube muestra un aviso.'
+                : d.tipo === 'lista' ? 'Reproduce los videos de la lista, uno tras otro.' : 'Listo para la galería.'}</p>
+              {est.aviso ? <p className="muted"><Ic n="fa-circle-info" /> {est.aviso}</p> : null}</div>
+          </div>) : null}
+      </div>
+      <Field label="Título" req wide hint="Se llena solo con el título de YouTube. Puedes cambiarlo.">
+        <Inp value={d.titulo} onChange={(v) => { tituloAuto.current = false; set('titulo')(v); }} maxLength={120} placeholder="Cámara 1 en vivo" /></Field>
+      <Field label="Visible"><Toggle value={d.activo} onChange={set('activo')} label={Number(d.activo) ? 'Se ve en el sitio' : 'Oculto'} /></Field>
+    </FormModal>
+  );
+}
+function Videos() {
+  const q = useRead('listVideos'), rows = (q.data || {}).rows || [];
+  const [edit, setEdit] = useState(null);
+  const borrar = async (r) => {
+    if (!await confirmar('¿Quitar "' + r.titulo + '" de la galería?', 'El video sigue en YouTube; solo deja de verse en FullGuia.', { peligro: 1, ok: 'Sí, quitar' })) return;
+    optimista('deleteVideo', [r.id], { lecturas: [['listVideos', []]], aplicar: opt.baja([r.id]), ok: 'Video quitado' });
+  };
+  const pos = (r) => rows.findIndex((x) => x.id === r.id);
+  const mover = (r, dir) => {
+    if (esTemporal(r.id) || rows.some((x) => x._pend)) return toast('Espera a que termine de guardar', 'warn');
+    optimista('moverVideo', [r.id, dir], {
+      lecturas: [['listVideos', []]],
+      aplicar: (dd) => {
+        const l = (dd.rows || []).slice(), i = l.findIndex((x) => x.id === r.id), j = i + dir;
+        if (i < 0 || j < 0 || j >= l.length) return dd;
+        const t = l[i]; l[i] = Object.assign({}, l[j], { _pend: 1 }); l[j] = Object.assign({}, t, { _pend: 1 });
+        return Object.assign({}, dd, { rows: l.map((x, k) => Object.assign({}, x, { orden: (k + 1) * 10 })) });
+      }
+    });
+  };
+  const activos = rows.filter((r) => Number(r.activo)).length;
+  return (
+    <div className="stack">
+      <Acciones>{can('videos', 'a') ? <Btn kind="primary" icon="fa-plus" data-primary="1" onClick={() => setEdit({})}>Agregar video</Btn> : null}</Acciones>
+      <p className="muted">Estos videos salen en el recuadro del inicio, en el orden de la columna Posición (se cambia con ↑ ↓). Quien visita desliza con el dedo (o con las flechas) para pasar de uno a otro. Puedes agregar todos los que quieras{rows.length ? ' · ' + activos + ' visible' + (activos === 1 ? '' : 's') : ''}.</p>
+      <Tabla nombre="videos" titulo="Galería de videos" rows={rows} loading={q.loading} error={q.error} porPagina={60} onRow={can('videos', 'e') ? (r) => setEdit({ row: r }) : undefined}
+        vacio={<Vacio icon="fa-film" titulo="Aún no hay videos" texto="Agrega el primero: pega el enlace de YouTube y el título se llena solo." />}
+        cols={[
+          { k: 'pos', label: 'Posición', t: 'num', get: (r) => pos(r) + 1, render: (r) => <b>{pos(r) + 1}</b> },
+          { k: 'miniatura', label: 'Video', t: 'img', render: (r) => (r.miniatura ? <img className="thumb thumb-video" src={r.miniatura} alt="" loading="lazy" /> : <span className="thumb thumb-video thumb-ph"><Ic n={r.tipo === 'canal' ? 'fa-tower-broadcast' : 'fa-film'} /></span>) },
+          { k: 'titulo', label: 'Título', render: (r) => <div><b>{r.titulo}</b>{r.demo ? <span style={{ marginLeft: 6 }}><Pill tone="info">demo</Pill></span> : null}</div> },
+          { k: 'tipo', label: 'Tipo', t: 'pill', get: (r) => TIPOS_VIDEO[r.tipo] || r.tipo, render: (r) => <Pill tone={r.tipo === 'canal' ? 'warn' : 'info'}>{TIPOS_VIDEO[r.tipo] || r.tipo}</Pill> },
+          { k: 'activo', label: 'Visible', t: 'flag' }
+        ]}
+        acciones={[
+          { icon: 'fa-arrow-up', title: 'Subir', onClick: (r) => mover(r, -1), show: (r) => can('videos', 'e') && pos(r) > 0 },
+          { icon: 'fa-arrow-down', title: 'Bajar', onClick: (r) => mover(r, 1), show: (r) => can('videos', 'e') && pos(r) >= 0 && pos(r) < rows.length - 1 },
+          { icon: 'fa-arrow-up-right-from-square', title: 'Ver en YouTube', onClick: (r) => window.open(enlaceVideo(r.tipo, r.ref), '_blank', 'noopener') },
+          { icon: 'fa-pen', title: 'Editar', onClick: (r) => setEdit({ row: r }), show: () => can('videos', 'e') },
+          { icon: 'fa-trash', title: 'Quitar', tone: 'bad', onClick: borrar, show: () => can('videos', 'd') }
+        ]} />
+      {edit ? <VideoModal row={edit.row} borrador={edit.borrador} onClose={() => setEdit(null)} onFallo={setEdit} /> : null}
+    </div>
+  );
+}
+
 // ---------- Importar CSV ----------
 const COLS_CSV = ['nombre', 'categoria', 'etiqueta', 'ciudad', 'direccion', 'whatsapp', 'telefono', 'precio_desde', 'precio_label', 'amenidades',
   'descripcion', 'rating', 'num_opiniones', 'plan', 'destacado_hasta', 'activo', 'imagen_url'];
@@ -2125,16 +2388,17 @@ function Usuarios() {
 // ---------- Configuración (solo administrador) ----------
 function Configuracion() {
   const q = useRead('getInicio'), r = (q.data || {}).resumen || {}, boot = $auth.get().boot;
+  const vDemo = (((useRead('listVideos').data || {}).rows) || []).filter((v) => Number(v.demo)).length;
   const cargar = async () => {
     const res = await lento('Cargando datos demo…', wr('cargarDemo'));
     if (!res.success) return alerta('No se pudo', res.message);
-    toast(res.agregados ? res.agregados + ' negocios demo agregados' : 'Los datos demo ya estaban cargados', 'ok');
+    toast(res.agregados || res.videos ? (res.agregados || 0) + ' negocios y ' + (res.videos || 0) + ' videos demo agregados' : 'Los datos demo ya estaban cargados', 'ok');
   };
   const borrar = async () => {
-    if (!await confirmar('¿Borrar todos los datos demo?', 'Se eliminan los ' + (r.demo || 0) + ' negocios marcados como demo, sus ofertas y sus fotos. Tus negocios reales no se tocan.', { peligro: 1, ok: 'Sí, borrar demo' })) return;
+    if (!await confirmar('¿Borrar todos los datos demo?', 'Se eliminan los ' + (r.demo || 0) + ' negocios marcados como demo, sus ofertas y sus fotos, y los ' + vDemo + ' videos demo de la galería. Tus negocios y videos reales no se tocan.', { peligro: 1, ok: 'Sí, borrar demo' })) return;
     const res = await lento('Borrando datos demo…', wr('borrarDemo'));
     if (!res.success) return alerta('No se pudo', res.message);
-    toast(res.negocios + ' negocios y ' + res.ofertas + ' ofertas demo borrados', 'ok');
+    toast(res.negocios + ' negocios, ' + res.ofertas + ' ofertas y ' + (res.videos || 0) + ' videos demo borrados', 'ok');
   };
   const wa = (window.FG_CONFIG || {}).WHATSAPP_FULLGUIA;
   return (
@@ -2144,9 +2408,10 @@ function Configuracion() {
           <p className="muted">Sirven para mostrar el sitio funcionando antes de tener negocios reales. Están marcados como <b>demo</b> y se pueden borrar de una sola vez sin tocar los negocios reales.</p>
           <div className="row" style={{ flexWrap: 'wrap', gap: 10 }}>
             <Pill tone={r.demo ? 'info' : 'mute'}>{q.loading ? '…' : (r.demo || 0) + ' negocios demo'}</Pill>
+            <Pill tone={vDemo ? 'info' : 'mute'}>{vDemo + ' videos demo'}</Pill>
             <span className="grow"></span>
             <Btn icon="fa-wand-magic-sparkles" onClick={cargar}>Cargar datos demo</Btn>
-            <Btn kind="danger" icon="fa-trash" onClick={borrar} disabled={!r.demo}>Borrar datos demo</Btn>
+            <Btn kind="danger" icon="fa-trash" onClick={borrar} disabled={!r.demo && !vDemo}>Borrar datos demo</Btn>
           </div>
         </div>
       </div>
@@ -2168,7 +2433,7 @@ function Configuracion() {
 
 // Registro de pantallas: clave de página → componente. Los catálogos declarativos no necesitan entrada aquí.
 const VIEWS = {
-  inicio: Inicio, negocios: Negocios, ofertas: Ofertas, categorias: Categorias, importar: Importar, usuarios: Usuarios, configuracion: Configuracion,
+  inicio: Inicio, negocios: Negocios, ofertas: Ofertas, categorias: Categorias, videos: Videos, importar: Importar, usuarios: Usuarios, configuracion: Configuracion,
   // @VISTAS — pantallas nuevas aquí
 };
 

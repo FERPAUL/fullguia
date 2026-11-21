@@ -30,13 +30,17 @@ function estadoBase() {
       { id: 'u-nadie', email: 'nadie@x.co', password: 'Clave12345x' }],
     tablas: {
       admins: [{ user_id: 'u-admin', rol: 'admin', nombre: 'Ana Admin', email: 'admin@x.co' }, { user_id: 'u-editor', rol: 'editor', nombre: 'Eva Editor', email: 'editor@x.co' }],
-      categorias: cats, negocios: negs, ofertas: []
+      categorias: cats, negocios: negs, ofertas: [],
+      videos: [
+        { id: 'vid-1', tipo: 'video', ref: 'AAAAAAAAAA1', titulo: 'Cámara 1', miniatura: 'https://i.ytimg.com/vi/AAAAAAAAAA1/hqdefault.jpg', enlace: null, orden: 10, activo: true, demo: false, created_at: '2026-11-20T01:00:00Z' },
+        { id: 'vid-2', tipo: 'video', ref: 'BBBBBBBBBB2', titulo: 'Cámara 2', miniatura: null, enlace: 'https://youtu.be/BBBBBBBBBB2', orden: 20, activo: true, demo: true, created_at: '2026-11-20T02:00:00Z' }]
     },
     rpc: {
-      panel_resumen: { activos: 3, inactivos: 0, destacados: 1, por_vencer: 1, vencidos: 2, demo: 1, ofertas: 0, categorias: 2, hoy: '2026-11-17',
+      panel_resumen: { activos: 3, inactivos: 0, destacados: 1, por_vencer: 1, vencidos: 2, demo: 1, ofertas: 0, categorias: 2, videos: 2, hoy: '2026-11-17',
         proximos: [{ id: 'n1', nombre: 'Negocio 1', destacado_hasta: '2026-11-20' }] }
     },
-    funciones: (b) => (b.accion === 'listar' ? { usuarios: [{ user_id: 'u-admin', email: 'admin@x.co', rol: 'admin', nombre: 'Ana Admin' }] } : { ok: true })
+    funciones: (b) => (b.ruta ? { canal: 'UC' + 'k'.repeat(22), titulo: 'Cámaras Cúcuta', miniatura: 'https://yt3.googleusercontent.com/foto=s900' }
+      : b.accion === 'listar' ? { usuarios: [{ user_id: 'u-admin', email: 'admin@x.co', rol: 'admin', nombre: 'Ana Admin' }] } : { ok: true })
   };
 }
 
@@ -57,6 +61,15 @@ module.exports = async function (ctx) {
     w.__BOOT__ = { app: 'FullGuia', empresa: 'FullGuia.com', look: {} };
     w.supabase = { createClient: () => crearSupabaseFalso(estado) };
     w.open = () => null;
+    // oEmbed de YouTube simulado: PRIV = privado (401), RED = sin conexión; el resto responde con su título
+    w.fetch = async (url) => {
+      const u = decodeURIComponent(String(url));
+      if (/PRIVADO0001/.test(u) && !w.__permitir) return { ok: false, status: 401, json: async () => ({}) };
+      if (/SINRED00001/.test(u)) throw new TypeError('Failed to fetch');
+      if (/list=/.test(u)) return { ok: true, status: 200, json: async () => ({ title: 'Lista de prueba', thumbnail_url: 'https://i.ytimg.com/vi/LLLLLLLLLL1/hqdefault.jpg' }) };
+      const id = (/v=([A-Za-z0-9_-]{11})/.exec(u) || [])[1] || '';
+      return { ok: true, status: 200, json: async () => ({ title: 'Título de YouTube ' + id, thumbnail_url: 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' }) };
+    };
     w.HTMLElement.prototype.scrollIntoView = function () {};
     const errores = [];
     w.addEventListener('error', (e) => errores.push(e.message));
@@ -89,13 +102,14 @@ module.exports = async function (ctx) {
   await P.entrar('nadie@x.co', 'Clave12345x');
   ctx.ok('R16', 'Usuario sin rol: se le niega la entrada al panel', await esperar(() => /no tiene acceso al panel/.test((P.$('.login-err') || {}).textContent || '')) && !P.$('.sb-nav'));
   await P.entrar('admin@x.co', 'Clave12345x');
-  ctx.ok('R16', 'Administrador: entra y ve el menú', await esperar(() => P.$$('.sb-nav .sb-item').length === 7), P.$$('.sb-nav .sb-item').map((x) => x.textContent).join(','));
+  ctx.ok('R16', 'Administrador: entra y ve el menú (con Galería de videos)', await esperar(() => P.$$('.sb-nav .sb-item').length === 8) && P.$$('.sb-nav .sb-item').some((x) => x.textContent.trim() === 'Galería de videos'), P.$$('.sb-nav .sb-item').map((x) => x.textContent).join(','));
 
   // ---------- R21: KPIs ----------
-  const kpis = await esperar(() => P.$$('.kpi').length === 6 && P.$$('.kpi'));
+  const kpis = await esperar(() => P.$$('.kpi').length === 7 && P.$$('.kpi'));
   const txt = kpis ? kpis.map((k) => k.textContent.replace(/\s+/g, ' ')).join(' | ') : '';
   ctx.ok('R21', 'Inicio: KPIs de activos, destacados vigentes, por vencer y vencidos', /3\s*Negocios activos/.test(txt) && /1\s*Destacados vigentes/.test(txt) && /1\s*Destacados por vencer/.test(txt) && /2\s*Destacados vencidos/.test(txt), txt);
   ctx.ok('R21', 'Inicio: lista de destacados que vencen en 7 días', /Negocio 1/.test((P.$('.feed') || {}).textContent || ''));
+  ctx.ok('R30', 'Inicio: KPI "Videos en la galería"', /2\s*Videos en la galería/.test(txt), txt);
   ctx.ok('R27', 'Inicio: aviso de negocios demo para el administrador', /1 negocios demo/.test(P.d.body.textContent));
 
   // ---------- R17: alta optimista ----------
@@ -218,9 +232,123 @@ module.exports = async function (ctx) {
     'intento=' + intento + ' aviso=' + !!okB + ' borrados=' + JSON.stringify(borro));
   delete e1.fallar;
 
+  // ---------- R30: galería de videos ----------
+  const L = P.w.fgVideos.leerEnlaceYoutube;
+  const casos = [
+    ['https://www.youtube.com/watch?v=7vw3rFRuvJ0', 'video', '7vw3rFRuvJ0'], ['https://youtu.be/7vw3rFRuvJ0?si=Xy12', 'video', '7vw3rFRuvJ0'],
+    ['youtube.com/shorts/7vw3rFRuvJ0', 'video', '7vw3rFRuvJ0'], ['https://m.youtube.com/watch?v=7vw3rFRuvJ0&t=45s', 'video', '7vw3rFRuvJ0'],
+    ['https://www.youtube.com/live/7vw3rFRuvJ0?feature=share', 'video', '7vw3rFRuvJ0'], ['https://www.youtube-nocookie.com/embed/7vw3rFRuvJ0', 'video', '7vw3rFRuvJ0'],
+    ['https://music.youtube.com/watch?v=7vw3rFRuvJ0', 'video', '7vw3rFRuvJ0'], ['  7vw3rFRuvJ0  ', 'video', '7vw3rFRuvJ0'],
+    ['https://www.youtube.com/watch?v=7vw3rFRuvJ0&list=PLrEnWoR732-BHrPp_Pm8_VleD68f9s14-', 'video', '7vw3rFRuvJ0'],
+    ['https://www.youtube.com/playlist?list=PLrEnWoR732-BHrPp_Pm8_VleD68f9s14-', 'lista', 'PLrEnWoR732-BHrPp_Pm8_VleD68f9s14-'],
+    ['https://www.youtube.com/embed/videoseries?list=PLrEnWoR732-BHrPp_Pm8_VleD68f9s14-', 'lista', 'PLrEnWoR732-BHrPp_Pm8_VleD68f9s14-'],
+    ['https://www.youtube.com/channel/UCBR8-60-B28hp2BmDPdntcQ', 'canal', 'UCBR8-60-B28hp2BmDPdntcQ'],
+    ['https://www.youtube.com/embed/live_stream?channel=UCBR8-60-B28hp2BmDPdntcQ', 'canal', 'UCBR8-60-B28hp2BmDPdntcQ'],
+    ['https://www.youtube.com/@CamarasCucuta/live', 'canal', '@CamarasCucuta'], ['@CamarasCucuta', 'canal', '@CamarasCucuta'],
+    ['https://www.youtube.com/c/Fulano', 'canal', 'c/Fulano'], ['https://www.youtube.com/user/Fulano', 'canal', 'user/Fulano'],
+    ['https://vimeo.com/12345', null], ['javascript:alert(1)', null], ['https://youtube.com.evil.com/watch?v=7vw3rFRuvJ0', null],
+    ['https://www.youtube.com/clip/UgkxAbc', null], ['https://youtu.be/corto', null], ['https://www.youtube.com/watch?v=7vw3rFRuvJ0"><x', null],
+    ['', null], ['https://www.youtube.com/feed/trending', null],
+    ['https://www.youtube.com/@NoticiasC%C3%BAcuta/live', 'canal', '@NoticiasCúcuta'], ['@CúcutaTV_ñ', 'canal', '@CúcutaTV_ñ'],
+    ['https://www.youtube.com/@a%2Fb%3Fx', null], ['@ab cd', null]
+  ];
+  const malos = casos.filter(([u, tipo, ref]) => { const r = L(u); return tipo ? (r.error || r.tipo !== tipo || (ref.indexOf('@') === 0 || /^(c|user)\//.test(ref) ? r.ruta !== ref : r.ref !== ref)) : !r.error; });
+  ctx.ok('R30', 'Enlaces de YouTube: ' + casos.length + ' formatos (videos, Shorts, en vivo, no listados, listas, canales) y rechazos', !malos.length, malos.map((m) => m[0] + ' → ' + JSON.stringify(L(m[0]))).join(' | '));
+  const I = P.w.fgVideos.infoYoutube;
+  const iv = await I('https://youtu.be/CCCCCCCCCC3');
+  ctx.ok('R30', 'Título automático: se lee de YouTube con la miniatura oficial', iv.titulo === 'Título de YouTube CCCCCCCCCC3' && iv.miniatura === 'https://i.ytimg.com/vi/CCCCCCCCCC3/hqdefault.jpg', JSON.stringify(iv));
+  let errPriv = '';
+  try { await I('https://youtu.be/PRIVADO0001'); } catch (e) { errPriv = e.message; }
+  ctx.ok('R30', 'Video privado o con la inserción desactivada: aviso claro', /privado/.test(errPriv) && /No listado/.test(errPriv), errPriv);
+  const sr = await I('https://youtu.be/SINRED00001');
+  ctx.ok('R30', 'Sin conexión con YouTube: deja escribir el título a mano', sr.ref === 'SINRED00001' && sr.titulo === '' && /a mano/.test(sr.aviso || ''));
+  const ic = await I('https://www.youtube.com/@CamarasCucuta/live');
+  ctx.ok('R30', 'Canal @usuario: se resuelve con la función youtube a su ID', ic.tipo === 'canal' && ic.ref === 'UC' + 'k'.repeat(22) && ic.titulo === 'Cámaras Cúcuta'
+    && e1.log.some((l) => l[0] === 'fn' && l[1] === 'youtube' && l[2].ruta === '@CamarasCucuta'));
+
+  await P.ir('Galería de videos');
+  ctx.ok('R30', 'Galería: lista los videos en orden, con la marca demo', await esperar(() => P.$$('.tb tbody tr').length === 2) && /Cámara 1/.test(P.$$('.tb tbody tr')[0].textContent) && /demo/.test(P.$$('.tb tbody tr')[1].textContent));
+  // Una fila sin enlace guardado (p. ej. cargada por SQL) se puede editar: el enlace se arma desde su ID
+  P.$$('.tb tbody tr')[0].click();
+  ctx.ok('R30', 'Editar un video sin enlace guardado: el formulario trae el enlace armado', await esperar(() => P.campo('Enlace de YouTube') && P.campo('Enlace de YouTube').value === 'https://www.youtube.com/watch?v=AAAAAAAAAA1'));
+  P.boton('Guardar', P.$('.modal')).click();
+  ctx.ok('R30', '…y se guarda sin pedir el enlace de nuevo', await esperar(() => !P.$('.modal') && (e1.tablas.videos.find((v) => v.id === 'vid-1') || {}).enlace === 'https://www.youtube.com/watch?v=AAAAAAAAAA1'));
+  await esperar(() => !P.$$('.tb tbody tr.pend').length);
+  const abrirAlta = async () => { P.boton('Agregar video').click(); return esperar(() => P.campo('Enlace de YouTube')); };
+  await abrirAlta();
+  P.escribir(P.campo('Enlace de YouTube'), 'https://www.youtube.com/watch?v=DDDDDDDDDD4&t=10s');
+  ctx.ok('R30', 'Al pegar el enlace el título se llena solo y se ve la vista previa', await esperar(() => P.campo('Título').value === 'Título de YouTube DDDDDDDDDD4' && P.$('.fg-video-prev img'), 3000));
+  P.escribir(P.campo('Título'), 'Cámara 3 en vivo');
+  let soltarV;
+  e1.pausa = new Promise((r) => { soltarV = r; });
+  P.boton('Guardar', P.$('.modal')).click();
+  const pendV = await esperar(() => !P.$('.modal') && P.$$('.tb tbody tr.pend').find((r) => /Cámara 3 en vivo/.test(r.textContent)));
+  ctx.ok('R30', 'Guardar: la fila aparece al instante al final (optimista)', !!pendV && /Cámara 3 en vivo/.test(P.$$('.tb tbody tr').slice(-1)[0].textContent));
+  soltarV(); e1.pausa = null;
+  const nuevoV = await esperar(() => e1.tablas.videos.find((v) => v.ref === 'DDDDDDDDDD4'));
+  ctx.ok('R30', 'Se guarda tipo, ID, título editado, miniatura, enlace y orden al final', !!nuevoV && nuevoV.tipo === 'video' && nuevoV.titulo === 'Cámara 3 en vivo' && nuevoV.orden === 30
+    && nuevoV.miniatura === 'https://i.ytimg.com/vi/DDDDDDDDDD4/hqdefault.jpg' && nuevoV.enlace === 'https://www.youtube.com/watch?v=DDDDDDDDDD4&t=10s' && nuevoV.activo === true, JSON.stringify(nuevoV));
+  await esperar(() => !P.$$('.tb tbody tr.pend').length);
+  // Duplicado
+  await abrirAlta();
+  P.escribir(P.campo('Enlace de YouTube'), 'https://youtu.be/AAAAAAAAAA1');
+  await esperar(() => P.campo('Título').value);
+  P.boton('Guardar', P.$('.modal')).click();
+  ctx.ok('R30', 'El mismo video dos veces: aviso "ya está en la galería"', await esperar(() => /ya está en la galería/.test((P.$('.toasts') || {}).textContent || '')) && !!P.$('.modal'));
+  // Enlace no válido y video privado
+  P.escribir(P.campo('Enlace de YouTube'), 'https://vimeo.com/123');
+  ctx.ok('R30', 'Enlace que no es de YouTube: mensaje en el formulario', await esperar(() => /no es de YouTube/.test((P.$('.fg-video-err') || {}).textContent || '')));
+  P.escribir(P.campo('Enlace de YouTube'), 'https://youtu.be/PRIVADO0001');
+  ctx.ok('R30', 'Video privado: el formulario lo explica', await esperar(() => /privado/.test((P.$('.fg-video-err') || {}).textContent || '')));
+  const nAntes = e1.tablas.videos.length;
+  P.boton('Guardar', P.$('.modal')).click();
+  await new Promise((r) => setTimeout(r, 150));
+  ctx.ok('R30', 'Con un enlace no válido no se guarda nada', e1.tablas.videos.length === nAntes && !!P.$('.modal'));
+  // Tras un error (p. ej. sin conexión), volver a pegar el mismo enlace lo consulta otra vez
+  P.w.__permitir = true;
+  P.escribir(P.campo('Enlace de YouTube'), '');
+  P.escribir(P.campo('Enlace de YouTube'), 'https://youtu.be/PRIVADO0001');
+  ctx.ok('R30', 'Volver a pegar el mismo enlace después de un error lo vuelve a consultar', await esperar(() => !P.$('.fg-video-err') && P.$('.fg-video-prev img'), 3000));
+  P.w.__permitir = false;
+  // Canal en vivo con @usuario
+  P.escribir(P.campo('Enlace de YouTube'), 'https://www.youtube.com/@CamarasCucuta/live');
+  await esperar(() => P.campo('Título').value === 'Cámaras Cúcuta');
+  P.boton('Guardar', P.$('.modal')).click();
+  const canalV = await esperar(() => e1.tablas.videos.find((v) => v.tipo === 'canal'));
+  ctx.ok('R30', 'Canal en vivo: se guarda con su ID de canal (UC…)', !!canalV && canalV.ref === 'UC' + 'k'.repeat(22) && canalV.titulo === 'Cámaras Cúcuta', JSON.stringify(canalV));
+  await esperar(() => P.$$('.tb tbody tr').length === 4 && !P.$$('.tb tbody tr.pend').length);
+  // Ordenar: bajar el primero
+  const fila1 = P.$$('.tb tbody tr')[0];
+  const bajar = fila1.querySelector('button.act[title="Bajar"]');
+  ctx.ok('R30', 'El primero no tiene "Subir" y sí "Bajar"; el último no tiene "Bajar"', !!bajar && !fila1.querySelector('button.act[title="Subir"]') && !P.$$('.tb tbody tr').slice(-1)[0].querySelector('button.act[title="Bajar"]'));
+  bajar.click();
+  ctx.ok('R30', 'Bajar: el cambio de orden se ve al instante', await esperar(() => /Cámara 2/.test(P.$$('.tb tbody tr')[0].textContent)));
+  const ordenado = await esperar(() => { const a = e1.tablas.videos.find((v) => v.id === 'vid-1'), b = e1.tablas.videos.find((v) => v.id === 'vid-2'); return a.orden > b.orden && a; });
+  ctx.ok('R30', 'Bajar: el nuevo orden llega a la base', !!ordenado, JSON.stringify(e1.tablas.videos.map((v) => v.titulo + ':' + v.orden)));
+  await esperar(() => !P.$$('.tb tbody tr.pend').length);
+  // Reversión si la base rechaza
+  await abrirAlta();
+  P.escribir(P.campo('Enlace de YouTube'), 'https://youtu.be/EEEEEEEEEE5');
+  await esperar(() => P.campo('Título').value);
+  e1.fallar = { videos: { code: '42501', message: 'rls' } };
+  P.boton('Guardar', P.$('.modal')).click();
+  const okR = await esperar(() => P.boton('Entendido'));
+  ctx.ok('R30', 'Si la base rechaza: aviso, la fila se quita y el formulario se reabre con lo escrito', !!okR && !P.$$('.tb tbody tr').some((r) => /EEEEEEEEEE5/.test(r.textContent)) && !e1.tablas.videos.some((v) => v.ref === 'EEEEEEEEEE5'));
+  if (okR) okR.click();
+  ctx.ok('R30', 'El formulario reabierto conserva el enlace', await esperar(() => P.campo('Enlace de YouTube') && P.campo('Enlace de YouTube').value === 'https://youtu.be/EEEEEEEEEE5'));
+  const cv = P.boton('Cancelar', P.$('.modal')); if (cv) cv.click();
+  delete e1.fallar;
+  // Quitar
+  const filaQ = await esperar(() => P.$$('.tb tbody tr').find((r) => /Cámara 3 en vivo/.test(r.textContent)));
+  filaQ.querySelector('button.act[title="Quitar"]').click();
+  const siQ = await esperar(() => P.boton('Sí, quitar'));
+  if (siQ) siQ.click();
+  ctx.ok('R30', 'Quitar: confirma y el video sale de la galería y de la base', !!siQ && await esperar(() => !e1.tablas.videos.some((v) => v.ref === 'DDDDDDDDDD4') && !P.$$('.tb tbody tr').some((r) => /Cámara 3 en vivo/.test(r.textContent))));
+
   // ---------- R26/R27: configuración y usuarios (admin) ----------
   await P.ir('Configuración');
   ctx.ok('R27', 'Configuración: botones Cargar y Borrar datos demo', !!P.boton('Cargar datos demo') && !!P.boton('Borrar datos demo'));
+  ctx.ok('R27', 'Configuración: cuenta también los videos demo', await esperar(() => /1 videos demo/.test(P.d.body.textContent)));
   await P.ir('Usuarios');
   ctx.ok('R26', 'Usuarios: el administrador ve la lista y "Nuevo usuario"', await esperar(() => P.$$('.tb tbody tr').length === 1) && !!P.boton('Nuevo usuario'));
   ctx.ok('', 'Sin errores de React en las pantallas del administrador', !(P.w.__uiErrors || []).length && !P.errores.length, (P.w.__uiErrors || []).concat(P.errores).join(' | ').slice(0, 300));
@@ -238,7 +366,9 @@ module.exports = async function (ctx) {
   await E.entrar('editor@x.co', 'Clave12345x');
   await esperar(() => E.$$('.sb-nav .sb-item').length);
   const menu = E.$$('.sb-nav .sb-item').map((x) => x.textContent.trim());
-  ctx.ok('R26', 'Editor: no ve Usuarios ni Configuración', menu.length === 5 && menu.indexOf('Usuarios') < 0 && menu.indexOf('Configuración') < 0, menu.join(','));
+  ctx.ok('R26', 'Editor: no ve Usuarios ni Configuración', menu.length === 6 && menu.indexOf('Usuarios') < 0 && menu.indexOf('Configuración') < 0, menu.join(','));
+  await E.ir('Galería de videos');
+  ctx.ok('R30', 'Editor: maneja la galería de videos (puede agregar, ordenar y quitar)', await esperar(() => E.boton('Agregar video') && E.$$('.tb tbody tr').length === 2 && E.$('button.act[title="Bajar"]') && E.$('button.act[title="Quitar"]')));
   await E.ir('Categorías');
   ctx.ok('R26', 'Editor: Categorías es solo de lectura', await esperar(() => /Solo el administrador puede crear o cambiar categorías/.test(E.d.body.textContent)) && !E.$('button[data-primary]'));
   await E.ir('Negocios');

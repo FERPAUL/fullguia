@@ -1,6 +1,6 @@
 // Humo de interfaz del sitio público en jsdom, con Supabase simulado (fetch falso).
 // Cubre: pintado con plantillas, caché stale-while-revalidate, límites de localStorage, errores de red,
-// categoría (A-Z + destacados + paginación), detalle, favoritos, "Publica tu negocio" y fachada de video.
+// categoría (A-Z + destacados + paginación), detalle, favoritos, "Publica tu negocio" y la galería de videos (R31).
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
@@ -18,8 +18,19 @@ const CATS = ['comidas', 'hoteles', 'salud', 'vehiculos', 'hogar', 'tecnologia',
 const inicio = (v, pref) => ({
   version: v, categorias: CATS,
   destacados: [1, 2, 3, 4, 5, 6].map((i) => neg(i, { nombre: (pref || 'Destacado ') + i, destacado: true, logo: i === 1 ? 'logos/2026/x-logo.webp' : null })).concat([]),
-  ofertas: [1, 2, 3, 4].map((i) => ({ id: 'o' + i, titulo: 'Oferta ' + i, descuento: '-' + i + '0%', imagen: 'ofertas/2026/o' + i + '-g.webp', imagen_mini: 'ofertas/2026/o' + i + '-m.webp', negocio: 'Negocio ' + i, negocio_slug: 'negocio-' + i }))
+  ofertas: [1, 2, 3, 4].map((i) => ({ id: 'o' + i, titulo: 'Oferta ' + i, descuento: '-' + i + '0%', imagen: 'ofertas/2026/o' + i + '-g.webp', imagen_mini: 'ofertas/2026/o' + i + '-m.webp', negocio: 'Negocio ' + i, negocio_slug: 'negocio-' + i })),
+  videos: VIDEOS
 });
+// Galería: 4 válidos (video, lista, canal en vivo, título con HTML) + 3 inválidos que deben descartarse
+const VIDEOS = [
+  { id: 'v1', tipo: 'video', ref: 'AAAAAAAAAA1', titulo: 'Cámara 1 en vivo', miniatura: 'https://i.ytimg.com/vi/AAAAAAAAAA1/hqdefault.jpg' },
+  { id: 'v2', tipo: 'lista', ref: 'PLlistaDePrueba123', titulo: 'Lista de turismo', miniatura: 'https://i.ytimg.com/vi/BBBBBBBBBB2/hqdefault.jpg' },
+  { id: 'v3', tipo: 'canal', ref: 'UC' + 'c'.repeat(22), titulo: 'Canal en vivo', miniatura: 'https://yt3.googleusercontent.com/avatar=s900' },
+  { id: 'v4', tipo: 'video', ref: 'CCCCCCCCCC4', titulo: XSS, miniatura: 'javascript:alert(1)' },
+  { id: 'm1', tipo: 'video', ref: 'corto', titulo: 'ID inválido' },
+  { id: 'm2', tipo: 'video', ref: 'DDDDDDDDDD5"><script>', titulo: 'ID con HTML' },
+  { id: 'm3', tipo: 'vimeo', ref: '12345678901', titulo: 'Otro sitio' }
+];
 
 module.exports = async function (ctx) {
   const PUB = path.join(ctx.RAIZ, 'public');
@@ -29,12 +40,16 @@ module.exports = async function (ctx) {
   // Abre una página con respuestas simuladas. guardado = copia de localStorage de una visita anterior.
   async function abrir(archivo, query, respuestas, o) {
     o = o || {};
-    const dom = new JSDOM(fs.readFileSync(path.join(PUB, archivo), 'utf8'), { url: 'http://localhost/' + archivo + (query || ''), runScripts: 'outside-only', pretendToBeVisual: true });
+    const html = fs.readFileSync(path.join(PUB, archivo), 'utf8');
+    const dom = new JSDOM(o.html ? o.html(html) : html, { url: 'http://localhost/' + archivo + (query || ''), runScripts: 'outside-only', pretendToBeVisual: true });
     const w = dom.window;
     const llamadas = [];
     w.__abiertos = [];
     w.open = (u) => { w.__abiertos.push(u); return null; };
     w.HTMLElement.prototype.scrollIntoView = function () { w.__scroll = this.id; };
+    if (o.ahorroDatos) Object.defineProperty(w.navigator, 'connection', { value: { saveData: true } });
+    // IntersectionObserver simulado: w.__io(true|false) dice si la galería está en pantalla
+    if (o.io) w.IntersectionObserver = function (cb) { this.observe = () => { w.__io = (si) => cb([{ isIntersecting: si }]); }; };
     if (o.sinStorage) Object.defineProperty(w, 'localStorage', { get() { throw new Error('bloqueado'); } });
     else if (o.guardado) Object.entries(o.guardado).forEach(([k, v]) => w.localStorage.setItem(k, v));
     const sincrono = { tarjetas: -1 };
@@ -88,10 +103,149 @@ module.exports = async function (ctx) {
   ctx.ok('R15', 'Imágenes con loading="lazy", ancho/alto fijos y srcset mini/grande',
     img.getAttribute('loading') === 'lazy' && img.getAttribute('width') && img.getAttribute('height') && /400w.*1200w/.test(img.getAttribute('srcset') || ''), img.getAttribute('srcset'));
   ctx.ok('R15', 'Todas las imágenes de tarjetas tienen width/height (sin saltos de diseño)', $$(A.d, '#fg-destacados img, #fg-ofertas img').every((i) => i.getAttribute('width') && i.getAttribute('height')));
-  ctx.ok('R15', 'YouTube: al abrir no hay iframe (solo miniatura)', !A.d.querySelector('.video-box iframe') && !!A.d.querySelector('.video-box .fg-video img'));
-  A.d.querySelector('.fg-video').dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
-  const ifr = A.d.querySelector('.video-box iframe');
-  ctx.ok('R15', 'YouTube: el iframe se carga al hacer clic', !!ifr && /youtube-nocookie\.com\/embed\/7vw3rFRuvJ0\?.*autoplay=1/.test(ifr.getAttribute('src')));
+
+  // ================= GALERÍA DE VIDEOS (R31) =================
+  const G0 = A.w.FG.galeria;
+  const slides = $$(A.d, '#fg-pista .fg-slide');
+  ctx.ok('R31', 'Galería: una diapositiva por video válido; los inválidos se descartan', slides.length === 4 && G0.estado().total === 4, slides.length);
+  ctx.ok('R31', 'Galería: el orden es el del panel', slides.map((x) => x.getAttribute('data-ref')).join(',') === 'AAAAAAAAAA1,PLlistaDePrueba123,UC' + 'c'.repeat(22) + ',CCCCCCCCCC4');
+  ctx.ok('R13', 'Galería: un título con HTML se muestra como texto', !A.w.__xss && slides[3].querySelector('[data-f="titulo"]').textContent === XSS && $$(A.d, '#fg-pista img[src="x"]').length === 0);
+  ctx.ok('R31', 'Galería: miniatura no segura se cambia por la oficial de YouTube', slides[3].querySelector('img').getAttribute('src') === 'https://i.ytimg.com/vi/CCCCCCCCCC4/hqdefault.jpg');
+  ctx.ok('R31', 'Galería: el canal muestra su foto y la marca EN VIVO', slides[2].classList.contains('fg-slide-canal') && !slides[2].querySelector('[data-f="vivo"]').hidden && slides[0].querySelector('[data-f="vivo"]').hidden);
+  ctx.ok('R15', 'Galería: la primera miniatura carga con prioridad y las demás en diferido', slides[0].querySelector('img').getAttribute('fetchpriority') === 'high' && slides[1].querySelector('img').getAttribute('loading') === 'lazy'
+    && slides.every((x) => x.querySelector('img').getAttribute('width') && x.querySelector('img').getAttribute('height')));
+  ctx.ok('R31', 'Galería: contador 1 / 4, 4 puntos y flechas (anterior desactivada)', A.d.getElementById('fg-gal-contador').textContent === '1 / 4' && $$(A.d, '#fg-gal-puntos .dot').length === 4
+    && !A.d.querySelector('.fg-gal-ant').hidden && A.d.querySelector('.fg-gal-ant').disabled && !A.d.querySelector('.fg-gal-sig').disabled);
+  ctx.ok('R31', 'Galería: solo la diapositiva del frente se enfoca (las demás inert)', !slides[0].hasAttribute('inert') && slides.slice(1).every((x) => x.hasAttribute('inert')));
+  const iframes = () => $$(A.d, '#fg-pista iframe');
+  await new Promise((r) => setTimeout(r, 350));
+  const f0 = iframes()[0];
+  ctx.ok('R31', 'Galería: el video del frente arranca solo (un solo reproductor)', iframes().length === 1 && slides[0].contains(f0));
+  ctx.ok('R31', 'Galería: arranca en silencio, en línea y con la API para controlar el sonido',
+    !!f0 && /^https:\/\/www\.youtube-nocookie\.com\/embed\/AAAAAAAAAA1\?autoplay=1&playsinline=1&rel=0&enablejsapi=1&mute=1/.test(f0.getAttribute('src')), f0 && f0.getAttribute('src'));
+  ctx.ok('R31', 'Galería: el reproductor permite autoplay y pantalla completa, y envía el referer que pide YouTube',
+    !!f0 && /autoplay/.test(f0.getAttribute('allow')) && f0.hasAttribute('allowfullscreen') && f0.getAttribute('referrerpolicy') === 'strict-origin-when-cross-origin');
+  ctx.ok('R31', 'Galería: capa táctil encima del video (se puede deslizar sobre él)', !!slides[0].querySelector('.fg-capa'));
+  const btnS = A.d.getElementById('fg-sonido');
+  ctx.ok('R31', 'Galería: botón visible "Activar sonido" mientras está en silencio', !btnS.hidden && /Activar sonido/.test(btnS.textContent) && btnS.getAttribute('aria-pressed') === 'false');
+  // Comandos que recibe el reproductor
+  const cmds = [];
+  const espiar = (fr) => { fr.contentWindow.postMessage = (m, o) => { const j = JSON.parse(m); cmds.push(j.func || j.event); cmds.origen = o; }; };
+  espiar(f0);
+  const desdeYT = (fr, data, origen) => A.w.dispatchEvent(new A.w.MessageEvent('message', { data: JSON.stringify(data), origin: origen || 'https://www.youtube-nocookie.com', source: fr.contentWindow }));
+  desdeYT(f0, { event: 'onReady' });
+  ctx.ok('R31', 'Galería: al estar listo, el reproductor queda en silencio hasta el primer toque', cmds.join(',') === 'mute' && cmds.origen === 'https://www.youtube-nocookie.com', cmds.join(','));
+  A.d.querySelector('.hero-title').dispatchEvent(new A.w.Event('pointerdown', { bubbles: true }));
+  ctx.ok('R31', 'Galería: el primer toque en la página activa el sonido del video del frente', G0.estado().sonido && cmds.slice(-2).join(',') === 'unMute,playVideo' && /Silenciar/.test(btnS.textContent), cmds.join(','));
+  btnS.dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
+  ctx.ok('R31', 'Galería: el botón silencia y vuelve a activar el sonido', cmds[cmds.length - 1] === 'mute' && /Activar sonido/.test(btnS.textContent) && !G0.estado().sonido);
+  btnS.dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
+  ctx.ok('R31', 'Galería: segundo clic en el botón → con sonido', cmds.slice(-2).join(',') === 'unMute,playVideo' && G0.estado().sonido);
+  const nCmds = cmds.length;
+  desdeYT(f0, { event: 'onReady' }, 'https://evil.com');
+  desdeYT(f0, { event: 'infoDelivery', info: { muted: true } }, 'https://evil.com');
+  ctx.ok('R13', 'Galería: se ignoran mensajes que no vienen de YouTube', cmds.length === nCmds && G0.estado().sonido);
+  // Siguiente con la flecha
+  A.d.querySelector('.fg-gal-sig').dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
+  const f1 = iframes()[0];
+  ctx.ok('R31', 'Flecha siguiente: pasa al 2.º video y quita el reproductor anterior (su audio se corta)', G0.estado().activo === 1 && iframes().length === 1 && slides[1].contains(f1) && !f0.isConnected && !slides[0].querySelector('.fg-capa'));
+  ctx.ok('R31', 'Una lista de reproducción se inserta como videoseries', /\/embed\/videoseries\?list=PLlistaDePrueba123&autoplay=1/.test(f1.getAttribute('src')), f1.getAttribute('src'));
+  ctx.ok('R31', 'Al pasar de video se actualizan contador, punto activo y título', A.d.getElementById('fg-gal-contador').textContent === '2 / 4' && A.d.querySelectorAll('#fg-gal-puntos .dot')[1].classList.contains('active')
+    && A.d.getElementById('fg-gal-titulo').textContent === 'Lista de turismo' && slides[0].hasAttribute('inert') && !slides[1].hasAttribute('inert'));
+  espiar(f1);
+  cmds.length = 0;
+  desdeYT(f1, { event: 'onReady' });
+  ctx.ok('R31', 'El video siguiente suena si el visitante ya activó el sonido', cmds.join(',') === 'unMute,playVideo', cmds.join(','));
+  A.d.getElementById('fg-galeria').dispatchEvent(new A.w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  const f2 = iframes()[0];
+  ctx.ok('R31', 'Teclado → : canal en vivo con live_stream?channel=', G0.estado().activo === 2 && /\/embed\/live_stream\?channel=UCc{22}&/.test(f2.getAttribute('src')), f2.getAttribute('src'));
+  A.d.getElementById('fg-galeria').dispatchEvent(new A.w.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  ctx.ok('R31', 'Teclado ← : vuelve al anterior', G0.estado().activo === 1);
+  A.d.querySelectorAll('#fg-gal-puntos .dot')[3].dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
+  ctx.ok('R31', 'Punto 4: salta al último video; la flecha siguiente queda desactivada', G0.estado().activo === 3 && A.d.querySelector('.fg-gal-sig').disabled && iframes().length === 1);
+  // Al terminar un video pasa solo al siguiente (y del último vuelve al primero)
+  const f3 = iframes()[0];
+  desdeYT(f3, { event: 'infoDelivery', info: { playerState: 0 } });
+  ctx.ok('R31', 'Al terminar un video pasa solo al siguiente (del último vuelve al primero)', G0.estado().activo === 0 && iframes().length === 1 && slides[0].contains(iframes()[0]));
+  // Pausa tocando el video (la capa), sin confundirlo con el primer toque
+  const f4 = iframes()[0];
+  espiar(f4);
+  cmds.length = 0;
+  desdeYT(f4, { event: 'infoDelivery', info: { playerState: 1 } });
+  await new Promise((r) => setTimeout(r, 650));   // pasado el primer toque
+  slides[0].querySelector('.fg-capa').dispatchEvent(new A.w.MouseEvent('click', { bubbles: true }));
+  ctx.ok('R31', 'Tocar el video lo pausa', cmds[cmds.length - 1] === 'pauseVideo', cmds.join(','));
+  // Repintar con los mismos datos (revalidación de la caché) no reinicia el video que suena
+  G0.pintar(JSON.parse(JSON.stringify(VIDEOS)));
+  ctx.ok('R12', 'Galería: repintar con los mismos datos no reinicia el video', iframes()[0] === f4 && f4.isConnected);
+  G0.pintar([VIDEOS[2], VIDEOS[0]]);
+  ctx.ok('R31', 'Galería: si cambian los videos se rehace y sigue en el mismo video', G0.estado().total === 2 && G0.estado().activo === 1 && $$(A.d, '#fg-pista .fg-slide')[1].getAttribute('data-ref') === 'AAAAAAAAAA1');
+  // El navegador no deja activar el sonido (p. ej. un deslizamiento no cuenta como toque): se refleja y se reintenta
+  const bloq = await abrir('index.html', '', { pagina_inicio: datos });
+  await new Promise((r) => setTimeout(r, 350));
+  const fb = bloq.d.querySelector('#fg-pista iframe');
+  const cb = [];
+  fb.contentWindow.postMessage = (m) => { const j = JSON.parse(m); cb.push(j.func || j.event); };
+  bloq.d.querySelector('.hero-title').dispatchEvent(new bloq.w.Event('pointerdown', { bubbles: true }));
+  bloq.w.dispatchEvent(new bloq.w.MessageEvent('message', { data: JSON.stringify({ event: 'infoDelivery', info: { muted: true } }), origin: 'https://www.youtube-nocookie.com', source: fb.contentWindow }));
+  await new Promise((r) => setTimeout(r, 1750));
+  const eb = bloq.w.FG.galeria.estado();
+  ctx.ok('R31', 'Si el navegador no deja sonar: el botón vuelve a "Activar sonido" (refleja lo que dice YouTube)', !eb.sonido && eb.muted === true && /Activar sonido/.test(bloq.d.getElementById('fg-sonido').textContent), JSON.stringify(eb));
+  cb.length = 0;
+  bloq.d.querySelector('.hero-title').dispatchEvent(new bloq.w.Event('pointerdown', { bubbles: true }));
+  ctx.ok('R31', '…y el siguiente toque vuelve a intentar activar el sonido', cb.join(',') === 'unMute,playVideo' && bloq.w.FG.galeria.estado().sonido, cb.join(','));
+  // La galería fuera de la pantalla: no arranca hasta que el visitante llega a ella, y se pausa al salir
+  const fuera = await abrir('index.html', '', { pagina_inicio: datos }, { io: true });
+  fuera.w.__io(false);
+  await new Promise((r) => setTimeout(r, 350));
+  ctx.ok('R31', 'Galería fuera de pantalla: no carga el reproductor', !fuera.d.querySelector('#fg-pista iframe'));
+  fuera.w.__io(true);
+  const ff = fuera.d.querySelector('#fg-pista iframe');
+  ctx.ok('R31', 'Al llegar a la galería, el video arranca', !!ff);
+  const cf = [];
+  if (ff) ff.contentWindow.postMessage = (m) => { cf.push(JSON.parse(m).func); };
+  fuera.w.__io(false);
+  fuera.w.__io(true);
+  ctx.ok('R31', 'Al salir de la pantalla se pausa y al volver sigue', cf.join(',') === 'pauseVideo,playVideo', cf.join(','));
+  // Hallazgos de /code-review (regresión)
+  cf.length = 0;
+  fuera.w.dispatchEvent(new fuera.w.MessageEvent('message', { data: JSON.stringify({ event: 'infoDelivery', info: { playerState: 2 } }), origin: 'https://www.youtube-nocookie.com', source: ff.contentWindow }));
+  fuera.w.__io(false);
+  fuera.w.__io(true);
+  ctx.ok('R31', 'Un video que el visitante pausó no vuelve a sonar solo al regresar a la galería', cf.join(',') === 'pauseVideo', cf.join(','));
+  const busca = await abrir('index.html', '', { pagina_inicio: datos });
+  await new Promise((r) => setTimeout(r, 350));
+  busca.d.getElementById('fg-q').dispatchEvent(new busca.w.Event('pointerdown', { bubbles: true }));
+  busca.d.getElementById('fg-q').dispatchEvent(new busca.w.KeyboardEvent('keydown', { key: 'h', bubbles: true }));
+  busca.d.querySelector('a[href]').dispatchEvent(new busca.w.Event('pointerdown', { bubbles: true }));
+  ctx.ok('R31', 'Escribir en el buscador o tocar un enlace no enciende el sonido', !busca.w.FG.galeria.estado().sonido && !busca.w.FG.galeria.estado().gesto);
+  busca.d.querySelector('.hero-title').dispatchEvent(new busca.w.Event('pointerdown', { bubbles: true }));
+  ctx.ok('R31', '…pero un toque en la página sí', busca.w.FG.galeria.estado().sonido);
+  // Visitante que toca ▶ antes de que la galería arranque, y llegan datos nuevos: su video sigue
+  const temprano = await abrir('index.html', '', { pagina_inicio: datos }, { ahorroDatos: true });
+  const g = temprano.w.FG.galeria;
+  g.pintar([VIDEOS[0], VIDEOS[1]]);
+  temprano.d.querySelector('#fg-pista .fg-slide .fg-video').dispatchEvent(new temprano.w.MouseEvent('click', { bubbles: true }));
+  g.pintar([VIDEOS[0], Object.assign({}, VIDEOS[1], { titulo: 'Título cambiado en el panel' })]);
+  const fi = temprano.d.querySelector('#fg-pista iframe');
+  ctx.ok('R31', 'Si llegan datos nuevos mientras suena un video que el visitante abrió, el video sigue', !!fi && /AAAAAAAAAA1/.test(fi.getAttribute('src')));
+  const rara = await abrir('index.html', '', {}, { redCaida: true, html: (h) => h.replace('<div class="fg-slide" data-tipo="video" data-ref="7vw3rFRuvJ0"', '<div class="fg-slide" data-tipo="video" data-ref="malo"></div><div class="fg-slide" data-tipo="video" data-ref="7vw3rFRuvJ0"') });
+  ctx.ok('R31', 'Una diapositiva inválida escrita en la página (Dreamweaver) no rompe la galería', rara.w.FG.galeria.estado().total === 1 && rara.d.getElementById('fg-gal-titulo').textContent === 'Descubre lo mejor de nuestra región');
+  // Casos límite
+  const una = await abrir('index.html', '', { pagina_inicio: Object.assign(inicio('1'), { videos: [VIDEOS[0]] }) });
+  ctx.ok('R31', 'Con 1 video: sin flechas, puntos ni contador', una.d.querySelector('.fg-gal-ant').hidden && una.d.querySelector('.fg-gal-sig').hidden && !una.d.querySelectorAll('#fg-gal-puntos .dot').length && una.d.getElementById('fg-gal-contador').textContent === '');
+  const cero = await abrir('index.html', '', { pagina_inicio: Object.assign(inicio('1'), { videos: [] }) });
+  await new Promise((r) => setTimeout(r, 300));
+  ctx.ok('R31', 'Sin videos: mensaje "Pronto verás videos aquí", sin reproductor ni controles', /Pronto verás videos aquí/.test(cero.d.getElementById('fg-galeria').textContent) && !cero.d.querySelector('#fg-pista iframe') && cero.d.querySelector('.fg-gal-sig').hidden && cero.d.getElementById('fg-sonido').hidden);
+  const vieja = await abrir('index.html', '', { pagina_inicio: (() => { const x = inicio('1'); delete x.videos; return x; })() });
+  ctx.ok('R31', 'Respuesta sin videos (versión anterior de la base): queda el video escrito en la página', $$(vieja.d, '#fg-pista .fg-slide').length === 1 && vieja.d.querySelector('#fg-pista .fg-slide').getAttribute('data-ref') === '7vw3rFRuvJ0');
+  const muchos = await abrir('index.html', '', { pagina_inicio: Object.assign(inicio('1'), { videos: Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i, tipo: 'video', ref: ('Vid' + i).padEnd(11, 'q'), titulo: 'Video ' + i })) }) });
+  ctx.ok('R31', 'Sin límite: 30 videos → 30 diapositivas; con más de 15 se usa solo el contador', $$(muchos.d, '#fg-pista .fg-slide').length === 30 && !muchos.d.querySelectorAll('#fg-gal-puntos .dot').length && muchos.d.getElementById('fg-gal-contador').textContent === '1 / 30');
+  const ahorro = await abrir('index.html', '', { pagina_inicio: datos }, { ahorroDatos: true });
+  await new Promise((r) => setTimeout(r, 350));
+  ctx.ok('R31', 'Con "ahorro de datos" no hay autoplay: se ve la miniatura con ▶', !ahorro.d.querySelector('#fg-pista iframe'));
+  ahorro.d.querySelector('#fg-pista .fg-slide .fg-video').dispatchEvent(new ahorro.w.MouseEvent('click', { bubbles: true }));
+  ctx.ok('R31', 'Tocar ▶ carga el video y pide el sonido', !!ahorro.d.querySelector('#fg-pista iframe') && ahorro.w.FG.galeria.estado().sonido);
   // Buscador
   let destino = '';
   A.w.__fgNavegar = (u) => { destino = u; };

@@ -18,11 +18,11 @@ module.exports = async function (ctx) {
   const doc = (f) => (fs.existsSync(path.join(R, f)) ? fs.readFileSync(path.join(R, f), 'utf8') : '');
   const ins = doc('INSTALACION.md'), mig = doc('MIGRACION.md'), plan = doc('PLAN.md');
   const faltan = (t, claves) => claves.filter((k) => t.indexOf(k) < 0);
-  const fi = faltan(ins, ['supabase/migrations', 'db push', 'functions deploy usuarios', 'Administrador', 'Editor', 'config.js', 'WHATSAPP_FULLGUIA', 'qa/qa.js', 'keepalive', 'Datos demo', 'servidor-local.js', 'Dreamweaver']);
+  const fi = faltan(ins, ['supabase/migrations', 'db push', 'functions deploy usuarios', 'functions deploy youtube', 'Galería de videos', 'Administrador', 'Editor', 'config.js', 'WHATSAPP_FULLGUIA', 'qa/qa.js', 'keepalive', 'Datos demo', 'servidor-local.js', 'Dreamweaver']);
   ctx.ok('R25', 'INSTALACION.md explica base, función, roles, config, QA, publicación y Dreamweaver', ins && !fi.length, fi.join(', '));
-  const fm = faltan(mig, ['Transfer project', 'Transfer ownership', 'hPanel', 'GIT', 'Webhook', 'config.js', 'Cron', 'subir-fotos.js', 'copiar-datos.js', '.htaccess', 'Borrar datos demo', 'Redirect URLs']);
+  const fm = faltan(mig, ['functions deploy youtube', 'Transfer project', 'Transfer ownership', 'hPanel', 'GIT', 'Webhook', 'config.js', 'Cron', 'subir-fotos.js', 'copiar-datos.js', '.htaccess', 'Borrar datos demo', 'Redirect URLs']);
   ctx.ok('R25', 'MIGRACION.md cubre invitaciones, transfer Supabase y GitHub, Hostinger Git, config.js, keepalive y plan B', mig && !fm.length, fm.join(', '));
-  ctx.ok('R25', 'PLAN.md lista R1…R28', /R1\b/.test(plan) && /R28\b/.test(plan));
+  ctx.ok('R25', 'PLAN.md lista R1…R31', /R1\b/.test(plan) && /R28\b/.test(plan) && /R31\b/.test(plan));
   const ht = doc('.htaccess');
   ctx.ok('R25', '.htaccess (Hostinger): sirve solo public/ y bloquea archivos ocultos y listados', /RewriteRule \^\(\.\*\)\$ public\/\$1/.test(ht) && /\(\^\|\/\)\\\. - \[F,L\]/.test(ht) && /Options -Indexes/.test(ht));
 
@@ -49,7 +49,9 @@ module.exports = async function (ctx) {
   ctx.ok('R23', 'La demo usa el mismo config.js que el repositorio', cfgPub.replace(/\r/g, '') === fs.readFileSync(path.join(R, 'public', 'js', 'config.js'), 'utf8').replace(/\r/g, ''));
   const adm = await fetch(PAGES + 'admin/');
   ctx.ok('R23', 'El panel responde en ' + PAGES + 'admin/', adm.status === 200 && /cargador\.js/.test(await adm.text()), 'HTTP ' + adm.status);
-  const noPublicos = await Promise.all(['supabase/migrations/20261118000001_esquema.sql', 'qa/qa.js', '.env', 'originales/index.html'].map(async (p) => (await fetch(PAGES + p)).status));
+  // GitHub Pages a veces responde 503 pasajero (incluso a páginas que no existen): se reintenta hasta tener la respuesta real.
+  const estadoReal = async (u) => { let s = 0; for (let i = 0; i < 6; i++) { s = (await fetch(u)).status; if (s !== 503) break; await new Promise((r) => setTimeout(r, 2000)); } return s; };
+  const noPublicos = await Promise.all(['supabase/migrations/20261118000001_esquema.sql', 'qa/qa.js', '.env', 'originales/index.html'].map((p) => estadoReal(PAGES + p)));
   ctx.ok('R5', 'La demo no publica migraciones, pruebas, .env ni originales', noPublicos.every((s) => s === 404), noPublicos.join('/'));
 
   // ---------- R24: keepalive ----------
@@ -102,7 +104,8 @@ module.exports = async function (ctx) {
     const firma = async () => (await db.query(`select md5(string_agg(x, '|' order by x)) h, count(*)::int n from (
       select 'c' || id || slug || nombre x from public.categorias union all
       select 'n' || id || slug || nombre || coalesce(imagen,'') || coalesce(destacado_hasta::text,'') from public.negocios union all
-      select 'o' || id || titulo || descuento from public.ofertas) t`)).rows[0];
+      select 'o' || id || titulo || descuento from public.ofertas union all
+      select 'v' || id || tipo || ref || titulo || orden || activo || demo from public.videos) t`)).rows[0];
     const f1 = await firma();
     const cadena = 'postgresql://' + encodeURIComponent(env.SUPABASE_DB_USER) + ':' + encodeURIComponent(env.SUPABASE_DB_PASSWORD) + '@' + env.SUPABASE_DB_HOST + ':5432/postgres';
     const c = spawnSync(process.execPath, [path.join(R, 'scripts', 'copiar-datos.js')], {
@@ -110,7 +113,7 @@ module.exports = async function (ctx) {
       env: Object.assign({}, process.env, { FG_ORIGEN_DB: cadena, FG_DESTINO_DB: cadena, NODE_PATH: path.join(R, 'qa', 'node_modules') })
     });
     const f2 = await firma();
-    ctx.ok('R1', 'copiar-datos.js copia categorías, negocios y ofertas sin perder nada', c.status === 0 && f1.h === f2.h && f1.n === f2.n,
+    ctx.ok('R1', 'copiar-datos.js copia categorías, negocios, ofertas y videos sin perder nada', c.status === 0 && f1.h === f2.h && f1.n === f2.n,
       (c.stdout || '').replace(/\n/g, ' · ').trim() + (c.stderr ? ' ERR ' + c.stderr.trim() : '') + ' · ' + f1.n + ' filas');
   } finally {
     await db.end();
